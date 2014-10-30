@@ -76,6 +76,8 @@ class DEMO_APP
 
 	ID3D11Buffer*					SkyVertexbuffer;
 	ID3D11Buffer*					SkyIndexbuffer;
+	ID3D11Buffer*					GroundVertexbuffer;
+	ID3D11Buffer*					GroundIndexbuffer;
 	ID3D11Buffer*					ObjectVertexbuffer[6];
 	ID3D11Buffer*					ObjectIndexbuffer[6];
 	ID3D11ShaderResourceView*		shaderResourceView[6];
@@ -90,7 +92,7 @@ class DEMO_APP
 	XMMATRIX						Rotationz;
 	float							dt;
 	int								sphereIndex;
-
+	int								groundIndex;
 
 	//object loader
 
@@ -134,6 +136,9 @@ class DEMO_APP
 public:
 	friend void LoadingThread(DEMO_APP* myApp);
 	friend void DrawingThread(DEMO_APP* myApp);
+	friend void StatuesLoadingThread(DEMO_APP* myApp);
+	friend void FolliageLoadingThread(DEMO_APP* myApp);
+	
 
 	struct SimpleVertex
 	{
@@ -208,6 +213,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
     backBuffer->Release();
 
 	std::thread myLoadingThread = std::thread(LoadingThread, this);
+	//std::thread myStatLoadingThread = std::thread(StatuesLoadingThread, this);
+	//std::thread myFollLoadingThread = std::thread(FolliageLoadingThread, this);
 
 	viewport = new D3D11_VIEWPORT;
     viewport->Width =	(FLOAT)sd.BufferDesc.Width;
@@ -246,18 +253,18 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ZeroMemory(&dsDesc, sizeof(dsDesc));
 	dsDesc.DepthEnable = true;
 	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	dsDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
 
 	dsDesc.StencilEnable = false;
-	dsDesc.StencilReadMask = 0xFF;
-	dsDesc.StencilWriteMask = 0xFF;
+	dsDesc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+	dsDesc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
 
 	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
@@ -280,6 +287,83 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	sampDesc.MinLOD = 0;
 	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	//Ground
+	std::vector<SimpleVertex> myground;
+
+	XMFLOAT3 initial = XMFLOAT3(-150.0f, 0.0f, 150.0f);
+
+	for (int rows = 0; rows < 301; rows++)
+	{
+		for (int columns = 0; columns < 301; columns++)
+		{
+			SimpleVertex aux;
+			aux.Pos = XMFLOAT3(initial.x, initial.y, initial.z);
+			aux.norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
+			aux.UV = XMFLOAT3(columns*0.03333f, rows*0.03333f, 0.0f);
+
+			myground.push_back(aux);
+
+			initial.x++;
+		}
+		initial.x = -150.0f;
+		initial.z--;
+	}
+
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
+	bd.Usage = D3D11_USAGE_IMMUTABLE;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = NULL;
+	bd.ByteWidth = sizeof(SimpleVertex) * myground.size();
+	bd.MiscFlags = 0; //unused
+	bd.StructureByteStride = sizeof(SimpleVertex);
+
+	D3D11_SUBRESOURCE_DATA InitData;
+	ZeroMemory(&InitData, sizeof(InitData));
+	InitData.pSysMem = &myground[0];
+
+	hr = device->CreateBuffer(&bd, &InitData, &GroundVertexbuffer);
+
+	std::vector<int> myGroundIndex;
+
+	int vIndex = 0;
+	for (int z = 0; z<300; z++)
+	{
+		for (int x = 0; x<300; x++)
+		{
+			// first triangle
+			myGroundIndex.push_back(vIndex);
+			myGroundIndex.push_back(vIndex + 301 + 1);
+			myGroundIndex.push_back(vIndex + 301);
+
+			// second triangle
+			myGroundIndex.push_back(vIndex);
+			myGroundIndex.push_back(vIndex + 1);
+			myGroundIndex.push_back(vIndex + 301 + 1);
+
+			vIndex++;
+		}
+		vIndex++;
+	}
+	D3D11_BUFFER_DESC Ibd;
+	ZeroMemory(&Ibd, sizeof(Ibd));
+	Ibd.Usage = D3D11_USAGE_DEFAULT;
+	Ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	Ibd.CPUAccessFlags = NULL;
+	Ibd.ByteWidth = sizeof(int) * myGroundIndex.size();
+	Ibd.MiscFlags = 0; //unused
+	Ibd.StructureByteStride = sizeof(unsigned short);
+
+	D3D11_SUBRESOURCE_DATA indexInitData;
+	ZeroMemory(&indexInitData, sizeof(indexInitData));
+	indexInitData.pSysMem = &myGroundIndex[0];
+	indexInitData.SysMemPitch = 0;
+	indexInitData.SysMemSlicePitch = 0;
+
+	hr = device->CreateBuffer(&Ibd, &indexInitData, &GroundIndexbuffer);
+
+	groundIndex = myGroundIndex.size();
 
 	//Create the Sample State
 	hr = device->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
@@ -326,8 +410,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rasterDesc.SlopeScaledDepthBias = 0.0f;
 
 	hr = device->CreateRasterizerState(&rasterDesc, &rasterState);
-	rasterDesc.CullMode = D3D11_CULL_NONE;
 
+	rasterDesc.CullMode = D3D11_CULL_NONE;
 	hr = device->CreateRasterizerState(&rasterDesc, &SkyrasterState);
 
 
@@ -362,11 +446,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//indexInitData.SysMemSlicePitch = 0;
 
 	//hr = device->CreateBuffer(&Ibd, &indexInitData, &indexbuffer);
-
-	StoShader[0].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
 	StoShader[0].ViewM = XMMatrixIdentity();
-	StoShader[1].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
+	StoShader[0].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
 	StoShader[1].ViewM = XMMatrixIdentity();
+	StoShader[1].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
+
 
 	XMFLOAT4 vec = XMFLOAT4(0.0f, 20.0f, -15.0f, 0.0f);
 	camPosition = XMLoadFloat4(&vec);
@@ -381,12 +465,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	skytoShader.World = XMMatrixIdentity();
 	skytoShader.World *= XMMatrixScaling(100.0f, 100.0f, 100.0f);
-	LoadObjectFromFile("Assets//Models//hounf.obj");
 	for (int i = 0; i < 6; i++)
 		WtoShader[i].World = XMMatrixIdentity();
 
+	//WtoShader[1].World = XMMatrixTranslation(15.0f, 0.0f, 15.0f);
 	WtoShader[0].World = XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	//WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	WAIT_FOR_THREAD(&myLoadingThread);
+	//WAIT_FOR_THREAD(&myStatLoadingThread);
+	//WAIT_FOR_THREAD(&myFollLoadingThread);
 }
 
 //************************************************************
@@ -402,7 +489,7 @@ bool DEMO_APP::Run()
 
 	if (shaderResourceView[0] && shaderResourceView[1])
 	{
-		inmediateContext->OMSetRenderTargets(1, &renderTargetView, nullptr);
+		inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
 
 		inmediateContext->RSSetViewports(1, viewport);
 
@@ -410,28 +497,28 @@ bool DEMO_APP::Run()
 		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
 		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
 
-		inmediateContext->OMSetDepthStencilState(stencilState, 1);
+		inmediateContext->OMSetDepthStencilState(stencilState, 0);
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
 		
 		inmediateContext->RSSetState(SkyrasterState);
 		inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
-
+		
 		skytoShader.World = XMMatrixIdentity();
 		XMMATRIX Scale = XMMatrixScaling(100.0f, 100.0f, 100.0f);
 		XMMATRIX Translation = XMMatrixTranslation(XMVectorGetX(StoShader[0].ViewM.r[0]), XMVectorGetY(StoShader[0].ViewM.r[1]), XMVectorGetZ(StoShader[0].ViewM.r[2]));
 		skytoShader.World = Scale * Translation;
-
+		
 		//infinite skybox
 		XMMATRIX aux = StoShader[0].ViewM;
 		aux.r[3].m128_f32[0] = aux.r[3].m128_f32[1] = aux.r[3].m128_f32[2] = 0.0f;
 		StoShader[1].ViewM = aux;
 		//skybox
 		D3D11_MAPPED_SUBRESOURCE  Resource;
-
+		
 		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &StoShader[1], sizeof(SEND_TO_SCENE));
 		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
+		
 		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &skytoShader, sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
@@ -440,23 +527,51 @@ bool DEMO_APP::Run()
 		inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
 		UINT sstride = sizeof(SimpleVertex);
 		UINT soffset = 0;
-
+		
 		inmediateContext->IASetInputLayout(vertexLayout);
-
+		
 		inmediateContext->IASetVertexBuffers(0, 1, &SkyVertexbuffer, &sstride, &soffset);
 		inmediateContext->IASetIndexBuffer(SkyIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
-
+		
 		inmediateContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[0]);
-
+		
 		inmediateContext->DrawIndexed(sphereIndex, 0, 0);
 
+		//ground
+
+		inmediateContext->RSSetState(rasterState);
+
+		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+		inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
+		inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+		sstride = sizeof(SimpleVertex);
+		soffset = 0;
+
+		inmediateContext->IASetInputLayout(vertexLayout);
+
+		inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
+		inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+
+		inmediateContext->DrawIndexed(groundIndex, 0, 0);
+		
+		
 		//object
+		//monks
+		/*inmediateContext->RSSetState(rasterState);
 
-		//inmediateContext->RSSetState(rasterState);
-
-		//inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
 		inmediateContext->Unmap(SceneconstantBuffer, 0);
@@ -473,13 +588,40 @@ bool DEMO_APP::Run()
 		inmediateContext->IASetInputLayout(vertexLayout);
 
 		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[0], &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[0], DXGI_FORMAT_R16_UINT, 0);
+		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[0], DXGI_FORMAT_R32_UINT, 0);
 
 		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[2]);
 
-		inmediateContext->DrawIndexed(indexCount[0], 0, 0);
+		inmediateContext->DrawIndexed(indexCount[0], 0, 0);*/
+
+		//Folliage
+
+		//inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
+		//inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		//memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+		//inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+		//inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		//memcpy(Resource.pData, &WtoShader[0], sizeof(SEND_TO_WORLD));
+		//inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+		//inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		//inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+		//sstride = sizeof(SimpleVertex);
+		//soffset = 0;
+
+		//inmediateContext->IASetInputLayout(vertexLayout);
+
+		//inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[1], &sstride, &soffset);
+		//inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[1], DXGI_FORMAT_R32_UINT, 0);
+
+		//inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+		//inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+
+		//inmediateContext->DrawIndexed(indexCount[1], 0, 0);
 	}
 
 	/*WAIT_FOR_THREAD(&myDrawingThread);
@@ -539,6 +681,12 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(SkypixelShader);
 	SAFE_DELETE(SkypixelShader);
 
+	//SAFE_RELEASE(GroundVertexbuffer);
+	//SAFE_DELETE(GroundVertexbuffer);
+	//
+	//SAFE_RELEASE(GroundIndexbuffer);
+	//SAFE_DELETE(GroundIndexbuffer);
+	
 	for (int i = 0; i < 2; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);// [i]);
@@ -557,14 +705,14 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(vertexLayout);
 	SAFE_DELETE(vertexLayout);
 
-	for (int i = 0; i < 1; i++)
-	{
-		SAFE_RELEASE(ObjectVertexbuffer[i]);
-		SAFE_DELETE(ObjectVertexbuffer[i]);
-
-		SAFE_RELEASE(ObjectIndexbuffer[i]);
-		SAFE_DELETE(ObjectIndexbuffer[i]);
-	}
+	//for (int i = 0; i < 1; i++)
+	//{
+	//	SAFE_RELEASE(ObjectVertexbuffer[i]);
+	//	SAFE_DELETE(ObjectVertexbuffer[i]);
+	//
+	//	SAFE_RELEASE(ObjectIndexbuffer[i]);
+	//	SAFE_DELETE(ObjectIndexbuffer[i]);
+	//}
 
 	SAFE_RELEASE(SceneconstantBuffer);
 	SAFE_DELETE(SceneconstantBuffer);
@@ -589,6 +737,12 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(SkyrasterState);
 	SAFE_DELETE(SkyrasterState);
+
+	SAFE_RELEASE(GroundVertexbuffer);
+	SAFE_DELETE(GroundVertexbuffer);
+
+	SAFE_RELEASE(GroundIndexbuffer);
+	SAFE_DELETE(GroundIndexbuffer);
 
 	UnregisterClass(L"DirectXApplication", application); 
 	return true;
@@ -1078,6 +1232,7 @@ bool DEMO_APP::LoadObjectFromFile(string fileName)
 				facesUsing++;
 			}
 		}
+
 		//Get the actual normal by dividing the normalSum by the number of faces sharing the vertex
 		normalSum = normalSum / facesUsing;
 
@@ -1126,7 +1281,7 @@ bool DEMO_APP::LoadObjectFromFile(string fileName)
 	vertexBufferData.pSysMem = &vertices[0];
 	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &ObjectVertexbuffer[objectcount]);
 
-	indexCount[objectcount]= meshTriangles * 3;
+	indexCount[objectcount] = meshTriangles * 3;
 	objectcount++;
 
 	return true;
@@ -1264,51 +1419,51 @@ void DEMO_APP::Input()
 	
 	if (GetAsyncKeyState('W'))
 	{
-		mat = XMMatrixTranslation(0.0f, 30.0f * dt, 0.0f) * mat;
+		mat = XMMatrixTranslation(0.0f, 15.0f * dt, 0.0f) * mat;
 	}
 	else if (GetAsyncKeyState('S'))
 	{
-		mat = XMMatrixTranslation(0.0f, -30.0f * dt, 0.0f) * mat;;
+		mat = XMMatrixTranslation(0.0f, -15.0f * dt, 0.0f) * mat;;
 	}
 	else if (GetAsyncKeyState('A'))
 	{
-		mat = XMMatrixTranslation(-30.0f * dt, 0.0f, 0.0f) * mat;
+		mat = XMMatrixTranslation(-15.0f * dt, 0.0f, 0.0f) * mat;
 	}
 	else if (GetAsyncKeyState('D'))
 	{
-		mat = XMMatrixTranslation(30.0f * dt, 0.0f, 0.0f) * mat;
+		mat = XMMatrixTranslation(15.0f * dt, 0.0f, 0.0f) * mat;
 	}
 
 	if (GetAsyncKeyState('U'))
 	{
-		mat = XMMatrixTranslation(0.0f, 0.0f, 30.0f * dt) * mat;
+		mat = XMMatrixTranslation(0.0f, 0.0f, 15.0f * dt) * mat;
 	}
 	else if (GetAsyncKeyState('J'))
 	{
-		mat = XMMatrixTranslation(0.0f, 0.0f, -30.0f * dt) * mat;
+		mat = XMMatrixTranslation(0.0f, 0.0f, -15.0f * dt) * mat;
 	}
 
 	else if (GetAsyncKeyState('X'))
 	{
-		XMFLOAT3 rot = XMFLOAT3(5.0f, 0.0f, 0.0f);
+		XMFLOAT3 rot = XMFLOAT3(2.0f, 0.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
 		mat = XMMatrixRotationAxis(aux, 1.0f *dt) * mat;
 	}
 	else if (GetAsyncKeyState('Z'))
 	{
-		XMFLOAT3 rot = XMFLOAT3(5.0f, 0.0f, 0.0f);
+		XMFLOAT3 rot = XMFLOAT3(2.0f, 0.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
 		mat = XMMatrixRotationAxis(aux, -1.0f *dt)* mat;
 	}
 	else if (GetAsyncKeyState('C')) //left
 	{
-		XMFLOAT3 rot = XMFLOAT3(0.0f, 5.0f, 0.0f);
+		XMFLOAT3 rot = XMFLOAT3(0.0f, 2.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
 		mat = mat * XMMatrixRotationAxis(aux, -1.0f *dt);
 	}
 	else if (GetAsyncKeyState('V')) //right
 	{
-		XMFLOAT3 rot = XMFLOAT3(0.0f, 5.0f, 0.0f);
+		XMFLOAT3 rot = XMFLOAT3(0.0f, 2.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
 		mat = mat * XMMatrixRotationAxis(aux, 1.0f *dt);
 	}
@@ -1321,8 +1476,18 @@ void LoadingThread(DEMO_APP* myApp)
 	HRESULT hrT;
 
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/Skybox.dds", nullptr, &myApp->shaderResourceView[0]);
-	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[1]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/woods.dds", nullptr, &myApp->shaderResourceView[1]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[2]);
+}
 
+void StatuesLoadingThread(DEMO_APP* myApp)
+{
+	myApp->LoadObjectFromFile("Assets//Models//monkstatue.obj");
+}
+
+void FolliageLoadingThread(DEMO_APP* myApp)
+{
+	myApp->LoadObjectFromFile("Assets//Models//LowPoly_Male_MKC_3D_ARTS.obj");
 }
 
 void DrawingThread(DEMO_APP* myApp)
