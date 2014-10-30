@@ -681,13 +681,13 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(SkypixelShader);
 	SAFE_DELETE(SkypixelShader);
 
-	//SAFE_RELEASE(GroundVertexbuffer);
-	//SAFE_DELETE(GroundVertexbuffer);
-	//
-	//SAFE_RELEASE(GroundIndexbuffer);
-	//SAFE_DELETE(GroundIndexbuffer);
+	SAFE_RELEASE(GroundVertexbuffer);
+	SAFE_DELETE(GroundVertexbuffer);
 	
-	for (int i = 0; i < 2; i++)
+	SAFE_RELEASE(GroundIndexbuffer);
+	SAFE_DELETE(GroundIndexbuffer);
+	
+	for (int i = 0; i < 3; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);// [i]);
 		SAFE_DELETE(shaderResourceView[i]);// [i]);
