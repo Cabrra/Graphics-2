@@ -39,7 +39,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 unpos : SV_POSIT
 
 	baseColor = baseTexture.Sample(filters[0], baseUV);
 
-	//clip(baseColor.w < 0.85f ? -1 : 1);
+	clip(baseColor.w < 0.85f ? -1 : 1);
 
 	return baseColor;
 	////Directional Light 1

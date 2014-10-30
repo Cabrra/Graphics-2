@@ -138,7 +138,8 @@ public:
 	friend void DrawingThread(DEMO_APP* myApp);
 	friend void StatuesLoadingThread(DEMO_APP* myApp);
 	friend void FolliageLoadingThread(DEMO_APP* myApp);
-	
+	friend void LeavesLoadingThread(DEMO_APP* myApp);
+	friend void ObjectLoadingThread(DEMO_APP* myApp);
 
 	struct SimpleVertex
 	{
@@ -214,7 +215,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	std::thread myLoadingThread = std::thread(LoadingThread, this);
 	//std::thread myStatLoadingThread = std::thread(StatuesLoadingThread, this);
-	//std::thread myFollLoadingThread = std::thread(FolliageLoadingThread, this);
+	std::thread myFollLoadingThread = std::thread(FolliageLoadingThread, this);
+	std::thread myLeavLoadingThread = std::thread(LeavesLoadingThread, this);
 
 	viewport = new D3D11_VIEWPORT;
     viewport->Width =	(FLOAT)sd.BufferDesc.Width;
@@ -470,10 +472,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	//WtoShader[1].World = XMMatrixTranslation(15.0f, 0.0f, 15.0f);
 	WtoShader[0].World = XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
 	//WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	WtoShader[2].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
 	WAIT_FOR_THREAD(&myLoadingThread);
-	//WAIT_FOR_THREAD(&myStatLoadingThread);
-	//WAIT_FOR_THREAD(&myFollLoadingThread);
+	WAIT_FOR_THREAD(&myLeavLoadingThread);
+	WAIT_FOR_THREAD(&myFollLoadingThread);
 }
 
 //************************************************************
@@ -562,11 +566,59 @@ bool DEMO_APP::Run()
 		inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
 
 		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		//inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
 
 		inmediateContext->DrawIndexed(groundIndex, 0, 0);
-		
+		//tree
+		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+		inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
+		inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+		sstride = sizeof(SimpleVertex);
+		soffset = 0;
+
+		inmediateContext->IASetInputLayout(vertexLayout);
+
+		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[1], &sstride, &soffset);
+		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[1], DXGI_FORMAT_R32_UINT, 0);
+
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[3]);
+
+		inmediateContext->DrawIndexed(indexCount[1], 0, 0);
+
+		//leaves
+		inmediateContext->RSSetState(SkyrasterState);
+		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+		inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
+		inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+		sstride = sizeof(SimpleVertex);
+		soffset = 0;
+
+		inmediateContext->IASetInputLayout(vertexLayout);
+
+		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[0], &sstride, &soffset);
+		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[0], DXGI_FORMAT_R32_UINT, 0);
+
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[4]);
+
+		inmediateContext->DrawIndexed(indexCount[0], 0, 0);
+
+		//leave
 		
 		//object
 		//monks
@@ -687,10 +739,10 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(GroundIndexbuffer);
 	SAFE_DELETE(GroundIndexbuffer);
 	
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 4; i++)
 	{
-		SAFE_RELEASE(shaderResourceView[i]);// [i]);
-		SAFE_DELETE(shaderResourceView[i]);// [i]);
+		SAFE_RELEASE(shaderResourceView[i]);
+		SAFE_DELETE(shaderResourceView[i]);
 	}
 
 	SAFE_RELEASE(WorldconstantBuffer);
@@ -1478,6 +1530,9 @@ void LoadingThread(DEMO_APP* myApp)
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/Skybox.dds", nullptr, &myApp->shaderResourceView[0]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/woods.dds", nullptr, &myApp->shaderResourceView[1]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[2]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_tronco.dds", nullptr, &myApp->shaderResourceView[3]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_leaves.dds", nullptr, &myApp->shaderResourceView[4]);
+
 }
 
 void StatuesLoadingThread(DEMO_APP* myApp)
@@ -1485,9 +1540,19 @@ void StatuesLoadingThread(DEMO_APP* myApp)
 	myApp->LoadObjectFromFile("Assets//Models//monkstatue.obj");
 }
 
-void FolliageLoadingThread(DEMO_APP* myApp)
+void ObjectLoadingThread(DEMO_APP* myApp)
 {
 	myApp->LoadObjectFromFile("Assets//Models//LowPoly_Male_MKC_3D_ARTS.obj");
+}
+
+void FolliageLoadingThread(DEMO_APP* myApp)
+{
+	myApp->LoadObjectFromFile("Assets//Models//conifer.obj");
+}
+
+void LeavesLoadingThread(DEMO_APP* myApp)
+{
+	myApp->LoadObjectFromFile("Assets//Models//leaves.obj");
 }
 
 void DrawingThread(DEMO_APP* myApp)
