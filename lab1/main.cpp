@@ -739,7 +739,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(GroundIndexbuffer);
 	SAFE_DELETE(GroundIndexbuffer);
 	
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 5; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -757,14 +757,14 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(vertexLayout);
 	SAFE_DELETE(vertexLayout);
 
-	//for (int i = 0; i < 1; i++)
-	//{
-	//	SAFE_RELEASE(ObjectVertexbuffer[i]);
-	//	SAFE_DELETE(ObjectVertexbuffer[i]);
-	//
-	//	SAFE_RELEASE(ObjectIndexbuffer[i]);
-	//	SAFE_DELETE(ObjectIndexbuffer[i]);
-	//}
+	for (int i = 0; i < 2; i++)
+	{
+		SAFE_RELEASE(ObjectVertexbuffer[i]);
+		SAFE_DELETE(ObjectVertexbuffer[i]);
+	
+		SAFE_RELEASE(ObjectIndexbuffer[i]);
+		SAFE_DELETE(ObjectIndexbuffer[i]);
+	}
 
 	SAFE_RELEASE(SceneconstantBuffer);
 	SAFE_DELETE(SceneconstantBuffer);
