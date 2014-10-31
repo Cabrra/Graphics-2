@@ -48,7 +48,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 {
 
 	float4 baseColor;
-	float4 ambient = float4(0.005f, 0.005f, 0.005f, 1.0f);
+	float4 ambient = float4(0.1f, 0.1f, 0.1f, 1.0f);
 	baseColor = baseTexture.Sample(filters[0], baseUV);
 	ambient = (baseColor * ambient);
 	clip(baseColor.w < 0.85f ? -1 : 1);
@@ -80,5 +80,5 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 	//float4 spec = color * specInt * intense;
 
-	return ambient + directional + pointL + spot;
+	return ambient /*+ directional*/ + pointL + spot;
 }

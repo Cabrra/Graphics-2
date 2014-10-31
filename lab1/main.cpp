@@ -534,9 +534,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	directionalLight.dir = XMFLOAT3( 0.0f, -1.0f, -0.1f);
 	directionalLight.col = XMFLOAT4(0.2549f, 0.4117f, 1.0f, 1.0f); //(65,105,225)
 
-	PointLightToS.pos = XMFLOAT3(-3.0f, 2.0f, 0.0f);
+	PointLightToS.pos = XMFLOAT3(-5.0f, 3.0f, -5.0f);
 	PointLightToS.dir = XMFLOAT3(1.0f, -1.0f, 0.0f);
-	PointLightToS.col = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	PointLightToS.col = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
 	PointLightToS.rPoint = 10.0f;
 
 	SpotLightToS.pos = XMFLOAT3(-4.0f,5.0f, -5.0f);
@@ -559,8 +559,17 @@ bool DEMO_APP::Run()
 {
 	time.Signal();
 	dt = time.Delta();
-
+	double mytime = time.TotalTime();
 	Input();
+
+	//point light
+	PointLightToS.rPoint *= cos((PointLightToS.rPoint + mytime) * 5) * sin((PointLightToS.rPoint - mytime) * 5) * dt;
+	
+	//spot light
+	SpotLightToS.pos = XMFLOAT3(SpotLightToS.pos.x + cos(mytime), SpotLightToS.pos.y, SpotLightToS.pos.z + sin(mytime));
+	SpotLightToS.col = XMFLOAT4(SpotLightToS.col.x + cos(mytime), SpotLightToS.col.y - sin(mytime), SpotLightToS.col.z + cos(mytime), 1.0f);;
+	//SpotLightToS.dir = XMFLOAT3(SpotLightToS.pos.x - cos(mytime), SpotLightToS.pos.y, SpotLightToS.pos.z + sin(mytime));;
+	//potLightToS.sPoint = ;
 
 	if (shaderResourceView[0] && shaderResourceView[1])
 	{
@@ -1625,15 +1634,18 @@ void DEMO_APP::Input()
 	}
 	else if (GetAsyncKeyState('C')) //left
 	{
-		XMFLOAT3 rot = XMFLOAT3(0.0f, 2.0f, 0.0f);
-		XMVECTOR aux = XMLoadFloat3(&rot);
-		mat = mat * XMMatrixRotationAxis(aux, -1.0f *dt);
+
+		XMFLOAT4 pos = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		XMVECTOR help = mat.r[3];
+		mat = mat * XMMatrixRotationY(-XMConvertToRadians(0.1f + dt));
+		mat.r[3] = help;
 	}
 	else if (GetAsyncKeyState('V')) //right
 	{
-		XMFLOAT3 rot = XMFLOAT3(0.0f, 2.0f, 0.0f);
-		XMVECTOR aux = XMLoadFloat3(&rot);
-		mat = mat * XMMatrixRotationAxis(aux, 1.0f *dt);
+		XMFLOAT4 pos = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+		XMVECTOR help = mat.r[3];
+		mat = mat * XMMatrixRotationY(XMConvertToRadians(0.1f + dt));
+		mat.r[3] = help;
 	}
 
 	StoShader[0].ViewM = XMMatrixInverse(nullptr, mat);
