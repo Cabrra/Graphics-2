@@ -13,16 +13,28 @@ cbuffer DIRECTIONALLIGHT : register(b0)
 	float4 DirlightCol;
 }
 
-cbuffer DIRECTIONALLIGHT2 : register(b1)
+cbuffer POINTLIGHT : register(b1)
 {
-	float3 DirPos2;
-	float Dirpadding2;
-	float3 DirlightDir2;
-	float moarpadding2;
-	float4 DirlightCol2;
+	float3 lightPos;
+	float padding;
+	float3 lightDir;
+	float radiusPoint;
+	float4 lightCol;
 }
 
-cbuffer SPECULAR : register(b2)
+cbuffer SPOTLIGHT : register(b2)
+{
+	float3 spotPos;
+	float pad;
+	float3 spotlightDir;
+	float radius;
+	float4 spotCol;
+	float inner;
+	float outer;
+	float2 morepadding;
+}
+
+cbuffer SPECULAR : register(b3)
 {
 	float4 CamWorldPos;
 	float3 SpecDir; //you don't need this you use each light direction and therefore you need to calculate the specular of each light
@@ -32,29 +44,41 @@ cbuffer SPECULAR : register(b2)
 	float4 color; // you don't need thois
 }
 
-float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 unpos : SV_POSITION) : SV_TARGET
+float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 {
 
 	float4 baseColor;
-
+	float4 ambient = float4(0.005f, 0.005f, 0.005f, 1.0f);
 	baseColor = baseTexture.Sample(filters[0], baseUV);
-
+	ambient = (baseColor * ambient);
 	clip(baseColor.w < 0.85f ? -1 : 1);
 
-	return baseColor;
-	////Directional Light 1
-	//float dirRatio = saturate(dot(-DirlightDir, normals));
-	//////Directional Light 2
-	//float dirRatio2 = saturate(dot(-DirlightDir2, normals));
-	////Specular
+	////Directional Light 
+	float dirRatio = saturate(dot(-DirlightDir, normals));
+	float4 directional = (dirRatio * DirlightCol * baseColor);
 
+	//Point light
+	float3 dir = normalize(lightPos - unpos);
+	float ratio = saturate(dot(dir, normals));
+	float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
+	atten *= atten;
+	float4 pointL = ratio * lightCol * baseColor * atten;
+
+	//spot light
+	float3 sDir = normalize(spotPos - unpos);
+	float surfaceRat = saturate(dot(-sDir, spotlightDir));
+	float spotRatio = saturate(dot(sDir, normals));
+	float innerAttenua = 1.0f - saturate(length(lightPos - unpos) / radius);
+	innerAttenua *= innerAttenua;
+	float spotAtten = 1.0f - saturate((inner - surfaceRat) / (inner - outer));
+	float4 spot = spotRatio * spotCol * baseColor * innerAttenua * spotAtten;
+
+	////Specular
 	//float4 viewdir = normalize(CamWorldPos - unpos);
 	//	float4	halfvect = normalize(((-DirlightDir2), 0) + viewdir);
 	//	float intense = max(pow(saturate(dot(normalize(normals), normalize(halfvect))), power), 0);
 
 	//float4 spec = color * specInt * intense;
 
-
-	//	return (dirRatio * DirlightCol * baseColor + spec) + (dirRatio2 * DirlightCol2 * baseColor);
-
+	return ambient + directional + pointL + spot;
 }

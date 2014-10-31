@@ -11,8 +11,10 @@ struct V_OUT
 {
 	float3 UVH : UV;
 	float3 normH : NORMAL;  //needs to be in world space -> multiply by world
-	float4 position : SV_POSITION; // unaltered position
+	float4 position : SV_POSITION; 
+	float3 unpos : POSITION; // unaltered position
 };
+
 cbuffer OBJECT : register(b0)
 {
 	float4x4 worldMatrix;
@@ -28,20 +30,21 @@ V_OUT main(V_IN input)
 {
 	V_OUT output = (V_OUT)0;
 	// ensures translation is preserved during matrix multiply  
+
+	output.unpos = input.posL;
 	float4 localH = float4(input.posL, 1.0f);
-		// move local space vertex from vertex buffer into world space.
 
-		// TODO: Move into view space, then projection space
-		//camera
-		localH = mul(localH, worldMatrix);
+	// move local space vertex from vertex buffer into world space.
 
+	// TODO: Move into view space, then projection space
+	//camera
+	localH = mul(localH, worldMatrix);
 	localH = mul(localH, viewMatrix);
-
 	localH = mul(localH, projectionMatrix);
 
 	output.position = localH;
 	output.UVH = input.UVL;
-	output.normH = input.normL;
+	output.normH = mul(input.normL, (float3x3)worldMatrix);
 
 	return output; // send projected vertex to the rasterizer stage
 }

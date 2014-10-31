@@ -19,6 +19,7 @@ using namespace DirectX;
 #include "Trivial_PS.csh"
 #include "Trivial_VS.csh"
 #include "Sky_PS.csh"
+#include "withNormalMap_PS.csh"
 #include "Sky_VS.csh"
 #include "DDSTextureLoader.h"
 
@@ -61,6 +62,7 @@ class DEMO_APP
 	ID3D11PixelShader*				pixelShader;
 	ID3D11VertexShader*				SkyvertexShader;
 	ID3D11PixelShader*				SkypixelShader;
+	ID3D11PixelShader*				objectNormalMappingPS;
 
 	ID3D11Texture2D*				zBuffer;
 	ID3D11DepthStencilState *		stencilState;
@@ -71,6 +73,9 @@ class DEMO_APP
 	ID3D11SamplerState*				samplerState;
 	ID3D11Buffer*					WorldconstantBuffer;
 	ID3D11Buffer*					SceneconstantBuffer;
+	ID3D11Buffer*					DirectionalLightconstantBuffer;
+	ID3D11Buffer*					SpotLightconstantBuffer;
+	ID3D11Buffer*					PointLightconstantBuffer;
 
 	ID3D11InputLayout*				vertexLayout;
 
@@ -80,7 +85,7 @@ class DEMO_APP
 	ID3D11Buffer*					GroundIndexbuffer;
 	ID3D11Buffer*					ObjectVertexbuffer[6];
 	ID3D11Buffer*					ObjectIndexbuffer[6];
-	ID3D11ShaderResourceView*		shaderResourceView[6];
+	ID3D11ShaderResourceView*		shaderResourceView[7];
 	ID3D11SamplerState*				CubesTexSamplerState;
 	ID3D11DeviceContext*			deferredcontext;
 	ID3D11CommandList*				commandList;
@@ -126,11 +131,35 @@ class DEMO_APP
 		XMFLOAT4 col;
 	};
 
+	struct SEND_POINT_LIGHT
+	{
+		XMFLOAT3 pos;
+		float padding;
+		XMFLOAT3 dir;
+		float rPoint;
+		XMFLOAT4 col;
+	};
+
+	struct SEND_SPOT_LIGHT
+	{
+		XMFLOAT3 pos;
+		float padding;
+		XMFLOAT3 dir;
+		float sPoint;
+		XMFLOAT4 col;
+		float inner;
+		float outer;
+		XMFLOAT2 morepadding;
+	};
+
 
 	SEND_TO_WORLD					WtoShader[6];
 	SEND_TO_WORLD					skytoShader;
 	SEND_TO_SCENE					StoShader[2];
-	SEND_DIRECTIONAL_LIGHT			directionalLight; //lights
+	//lights
+	SEND_DIRECTIONAL_LIGHT			directionalLight; 
+	SEND_POINT_LIGHT				PointLightToS;
+	SEND_SPOT_LIGHT					SpotLightToS;
 
 
 public:
@@ -230,6 +259,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &pixelShader);
 	hr = device->CreateVertexShader(Sky_VS, sizeof(Sky_VS), nullptr, &SkyvertexShader);
 	hr = device->CreatePixelShader(Sky_PS, sizeof(Sky_PS), nullptr, &SkypixelShader);
+	hr = device->CreatePixelShader(WithNormalMap_PS, sizeof(WithNormalMap_PS), nullptr, &objectNormalMappingPS);
 
 	// Z BUFFER
 	D3D11_TEXTURE2D_DESC dbDesc;
@@ -387,6 +417,30 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	hr = device->CreateBuffer(&cbd, nullptr, &SceneconstantBuffer);
 
+	ZeroMemory(&cbd, sizeof(cbd));
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.ByteWidth = sizeof(SEND_DIRECTIONAL_LIGHT);
+
+	hr = device->CreateBuffer(&cbd, nullptr, &DirectionalLightconstantBuffer);
+
+	ZeroMemory(&cbd, sizeof(cbd));
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.ByteWidth = sizeof(SEND_SPOT_LIGHT);
+
+	hr = device->CreateBuffer(&cbd, nullptr, &SpotLightconstantBuffer);
+
+	ZeroMemory(&cbd, sizeof(cbd));
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.ByteWidth = sizeof(SEND_POINT_LIGHT);
+
+	hr = device->CreateBuffer(&cbd, nullptr, &PointLightconstantBuffer);
+
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
 		{ "UV", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT,
@@ -475,6 +529,23 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	//WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	WtoShader[2].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
+
+	directionalLight.pos = XMFLOAT3(150.0f, 150.0f, 1.f);
+	directionalLight.dir = XMFLOAT3( 0.0f, -1.0f, -0.1f);
+	directionalLight.col = XMFLOAT4(0.2549f, 0.4117f, 1.0f, 1.0f); //(65,105,225)
+
+	PointLightToS.pos = XMFLOAT3(-3.0f, 2.0f, 0.0f);
+	PointLightToS.dir = XMFLOAT3(1.0f, -1.0f, 0.0f);
+	PointLightToS.col = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	PointLightToS.rPoint = 10.0f;
+
+	SpotLightToS.pos = XMFLOAT3(-4.0f,5.0f, -5.0f);
+	SpotLightToS.dir = XMFLOAT3(-1.0f, -1.0f, 0.0f);
+	SpotLightToS.col = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	SpotLightToS.sPoint = 20.0f;
+	SpotLightToS.inner = 0.92f;
+	SpotLightToS.outer = 0.9f;
+
 	WAIT_FOR_THREAD(&myLoadingThread);
 	WAIT_FOR_THREAD(&myLeavLoadingThread);
 	WAIT_FOR_THREAD(&myFollLoadingThread);
@@ -500,6 +571,10 @@ bool DEMO_APP::Run()
 		inmediateContext->ClearRenderTargetView(renderTargetView, Colors::MidnightBlue);
 		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
 		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
+		//ligths
+		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
 
 		inmediateContext->OMSetDepthStencilState(stencilState, 0);
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
@@ -555,6 +630,18 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
 
+		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &directionalLight, sizeof(SEND_DIRECTIONAL_LIGHT));
+		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &PointLightToS, sizeof(SEND_POINT_LIGHT));
+		inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
 		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
 		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
 		sstride = sizeof(SimpleVertex);
@@ -569,6 +656,7 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
 
 		inmediateContext->DrawIndexed(groundIndex, 0, 0);
+
 		//tree
 		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
@@ -578,7 +666,19 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
 
-		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &directionalLight, sizeof(SEND_DIRECTIONAL_LIGHT));
+		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &PointLightToS, sizeof(SEND_POINT_LIGHT));
+		inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
+		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
 		sstride = sizeof(SimpleVertex);
 		soffset = 0;
@@ -590,6 +690,7 @@ bool DEMO_APP::Run()
 
 		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[3]);
+		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[5]);
 
 		inmediateContext->DrawIndexed(indexCount[1], 0, 0);
 
@@ -603,7 +704,11 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
 
-		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &directionalLight, sizeof(SEND_DIRECTIONAL_LIGHT));
+		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
 		sstride = sizeof(SimpleVertex);
 		soffset = 0;
@@ -615,11 +720,10 @@ bool DEMO_APP::Run()
 
 		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[4]);
+		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[6]);
 
 		inmediateContext->DrawIndexed(indexCount[0], 0, 0);
 
-		//leave
-		
 		//object
 		//monks
 		/*inmediateContext->RSSetState(rasterState);
@@ -739,7 +843,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(GroundIndexbuffer);
 	SAFE_DELETE(GroundIndexbuffer);
 	
-	for (int i = 0; i < 5; i++)
+	for (int i = 0; i < 7; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -795,6 +899,18 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(GroundIndexbuffer);
 	SAFE_DELETE(GroundIndexbuffer);
+
+	SAFE_RELEASE(DirectionalLightconstantBuffer);
+	SAFE_DELETE(DirectionalLightconstantBuffer);
+
+	SAFE_RELEASE(objectNormalMappingPS);
+	SAFE_DELETE(objectNormalMappingPS);
+
+	SAFE_RELEASE(SpotLightconstantBuffer);
+	SAFE_DELETE(SpotLightconstantBuffer);
+
+	SAFE_RELEASE(PointLightconstantBuffer);
+	SAFE_DELETE(PointLightconstantBuffer);
 
 	UnregisterClass(L"DirectXApplication", application); 
 	return true;
@@ -1505,7 +1621,7 @@ void DEMO_APP::Input()
 	{
 		XMFLOAT3 rot = XMFLOAT3(2.0f, 0.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
-		mat = XMMatrixRotationAxis(aux, -1.0f *dt)* mat;
+		mat = XMMatrixRotationAxis(aux, -1.0f *dt) * mat;
 	}
 	else if (GetAsyncKeyState('C')) //left
 	{
@@ -1527,11 +1643,14 @@ void LoadingThread(DEMO_APP* myApp)
 {
 	HRESULT hrT;
 
-	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/Skybox.dds", nullptr, &myApp->shaderResourceView[0]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/nightsky.dds", nullptr, &myApp->shaderResourceView[0]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/woods.dds", nullptr, &myApp->shaderResourceView[1]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[2]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_tronco.dds", nullptr, &myApp->shaderResourceView[3]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_leaves.dds", nullptr, &myApp->shaderResourceView[4]);
+	//normal maps
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_tronco_normal.dds", nullptr, &myApp->shaderResourceView[5]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_leaves_normal.dds", nullptr, &myApp->shaderResourceView[6]);
 
 }
 
@@ -1567,6 +1686,7 @@ void DrawingThread(DEMO_APP* myApp)
 
 		myApp->deferredcontext->VSSetConstantBuffers(0, 1, &myApp->WorldconstantBuffer);
 		myApp->deferredcontext->VSSetConstantBuffers(1, 1, &myApp->SceneconstantBuffer);
+
 
 		D3D11_MAPPED_SUBRESOURCE  Resource;
 
