@@ -80,5 +80,5 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 	//float4 spec = color * specInt * intense;
 
-	return ambient /*+ directional*/ + pointL + spot;
+	return ambient /*+ directional */+ pointL + spot;
 }

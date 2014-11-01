@@ -38,6 +38,7 @@ using namespace std;
 
 #define BACKBUFFER_WIDTH	1280
 #define BACKBUFFER_HEIGHT	768
+#define CIRCLESPEED (2 * 3.1415f) / 6
 
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
 #define SAFE_DELETE(a) if( (a) != NULL ) delete (a); (a) = NULL;
@@ -110,6 +111,7 @@ class DEMO_APP
 
 	float camYaw = 0.0f;
 	float camPitch = 0.0f;
+	float angle;
 
 	struct SEND_TO_WORLD
 	{
@@ -218,6 +220,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//********************* END WARNING ************************//
 		
 	objectcount = 0;
+	angle = 0.0f;
 
 	DXGI_SWAP_CHAIN_DESC sd;
     ZeroMemory(&sd, sizeof(sd));
@@ -530,18 +533,18 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	WtoShader[2].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
 
-	directionalLight.pos = XMFLOAT3(150.0f, 150.0f, 1.f);
-	directionalLight.dir = XMFLOAT3( 0.0f, -1.0f, -0.1f);
+	directionalLight.pos = XMFLOAT3(0.0f, 0.2f, 0.0f);
+	directionalLight.dir = XMFLOAT3( -0.2f, -0.5f, 0.0f);
 	directionalLight.col = XMFLOAT4(0.2549f, 0.4117f, 1.0f, 1.0f); //(65,105,225)
 
 	PointLightToS.pos = XMFLOAT3(-5.0f, 3.0f, -5.0f);
-	PointLightToS.dir = XMFLOAT3(1.0f, -1.0f, 0.0f);
+	PointLightToS.dir = XMFLOAT3(0.0f, -1.0f, 0.0f);
 	PointLightToS.col = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	PointLightToS.rPoint = 10.0f;
+	PointLightToS.rPoint = 2.0f;
 
-	SpotLightToS.pos = XMFLOAT3(-4.0f,5.0f, -5.0f);
-	SpotLightToS.dir = XMFLOAT3(-1.0f, -1.0f, 0.0f);
-	SpotLightToS.col = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	SpotLightToS.pos = XMFLOAT3(0.0f,10.0f, 0.0f);
+	SpotLightToS.dir = XMFLOAT3(0.0f, -1.0f, 0.0f);
+	SpotLightToS.col = XMFLOAT4(0.0f, 1.0f, 1.0, 1.0f);
 	SpotLightToS.sPoint = 20.0f;
 	SpotLightToS.inner = 0.92f;
 	SpotLightToS.outer = 0.9f;
@@ -564,12 +567,38 @@ bool DEMO_APP::Run()
 
 	//point light
 	PointLightToS.rPoint *= cos((PointLightToS.rPoint + mytime) * 5) * sin((PointLightToS.rPoint - mytime) * 5) * dt;
+	// glow
+	//PointLightToS.rPoint = 10.0f + 5.0f * cos(mytime) * sin(mytime);
+
 	
 	//spot light
-	SpotLightToS.pos = XMFLOAT3(SpotLightToS.pos.x + cos(mytime), SpotLightToS.pos.y, SpotLightToS.pos.z + sin(mytime));
-	SpotLightToS.col = XMFLOAT4(SpotLightToS.col.x + cos(mytime), SpotLightToS.col.y - sin(mytime), SpotLightToS.col.z + cos(mytime), 1.0f);;
-	//SpotLightToS.dir = XMFLOAT3(SpotLightToS.pos.x - cos(mytime), SpotLightToS.pos.y, SpotLightToS.pos.z + sin(mytime));;
-	//potLightToS.sPoint = ;
+	angle += dt * CIRCLESPEED;
+	XMFLOAT3 position = XMFLOAT3(sinf(angle) * 10, 0.0f, cosf(angle)*10);
+
+
+	SpotLightToS.pos = XMFLOAT3(position.x, SpotLightToS.pos.y, position.z);
+	SpotLightToS.col = XMFLOAT4(SpotLightToS.col.x - cos(mytime), SpotLightToS.col.x - sin(mytime), SpotLightToS.col.x - cos(dt), 1.0f);
+	XMFLOAT3 mydir = XMFLOAT3(position.x - SpotLightToS.pos.x, SpotLightToS.dir.y, position.z - SpotLightToS.pos.z);
+	XMVECTOR myhel = XMLoadFloat3(&mydir);
+	XMVector2Normalize(myhel);
+	XMStoreFloat3(&mydir, myhel);
+
+	SpotLightToS.dir = mydir;
+
+
+	if (SpotLightToS.col.x < 0.0f)
+		SpotLightToS.col.x = 0.0f;
+	if (SpotLightToS.col.y < 0.0f)
+		SpotLightToS.col.y = 0.0f;
+	if (SpotLightToS.col.z < 0.0f)
+		SpotLightToS.col.z = 0.0f;
+
+	if (SpotLightToS.col.x > 1.0f)
+		SpotLightToS.col.x = 1.0f;
+	if (SpotLightToS.col.y > 1.0f)
+		SpotLightToS.col.y = 1.0f;
+	if (SpotLightToS.col.z  > 1.0f)
+		SpotLightToS.col.z = 1.0f;
 
 	if (shaderResourceView[0] && shaderResourceView[1])
 	{
