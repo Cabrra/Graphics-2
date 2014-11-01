@@ -535,7 +535,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	directionalLight.pos = XMFLOAT3(0.0f, 0.2f, 0.0f);
 	directionalLight.dir = XMFLOAT3( -0.2f, -0.5f, 0.0f);
-	directionalLight.col = XMFLOAT4(0.2549f, 0.4117f, 1.0f, 1.0f); //(65,105,225)
+	directionalLight.col = XMFLOAT4(0.0f, 0.0f, 0.4f, 1.0f); //(65,105,225)
 
 	PointLightToS.pos = XMFLOAT3(-5.0f, 3.0f, -5.0f);
 	PointLightToS.dir = XMFLOAT3(0.0f, -1.0f, 0.0f);
@@ -545,9 +545,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	SpotLightToS.pos = XMFLOAT3(0.0f,10.0f, 0.0f);
 	SpotLightToS.dir = XMFLOAT3(0.0f, -1.0f, 0.0f);
 	SpotLightToS.col = XMFLOAT4(0.0f, 1.0f, 1.0, 1.0f);
-	SpotLightToS.sPoint = 20.0f;
-	SpotLightToS.inner = 0.92f;
-	SpotLightToS.outer = 0.9f;
+	SpotLightToS.sPoint = 100.0f;
+	SpotLightToS.inner = 0.72f;
+	SpotLightToS.outer = 0.5f;
 
 	WAIT_FOR_THREAD(&myLoadingThread);
 	WAIT_FOR_THREAD(&myLeavLoadingThread);
@@ -573,11 +573,11 @@ bool DEMO_APP::Run()
 	
 	//spot light
 	angle += dt * CIRCLESPEED;
-	XMFLOAT3 position = XMFLOAT3(sinf(angle) * 10, 0.0f, cosf(angle)*10);
+	XMFLOAT3 position = XMFLOAT3(sinf(angle) * 30, 0.0f, cosf(angle)*30);
 
 
 	SpotLightToS.pos = XMFLOAT3(position.x, SpotLightToS.pos.y, position.z);
-	SpotLightToS.col = XMFLOAT4(SpotLightToS.col.x - cos(mytime), SpotLightToS.col.x - sin(mytime), SpotLightToS.col.x - cos(dt), 1.0f);
+	SpotLightToS.col = XMFLOAT4(/*SpotLightToS.col.x -*/ cos(mytime), /*SpotLightToS.col.y -*/ sin(mytime), /*SpotLightToS.col.z - */cos(dt), 1.0f);
 	XMFLOAT3 mydir = XMFLOAT3(position.x - SpotLightToS.pos.x, SpotLightToS.dir.y, position.z - SpotLightToS.pos.z);
 	XMVECTOR myhel = XMLoadFloat3(&mydir);
 	XMVector2Normalize(myhel);
