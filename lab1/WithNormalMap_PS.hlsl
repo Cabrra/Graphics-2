@@ -45,6 +45,12 @@ cbuffer SPECULAR : register(b3)
 	float4 color; // you don't need thois
 }
 
+
+cbuffer SCENE : register(b4)
+{
+	float4 viewPos;
+}
+
 float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 {
 
@@ -87,5 +93,17 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 		//float4 spec = color * specInt * intense;
 
-		return ambient + directional + pointL + spot;
+			//fog 
+	float  fogStart = 25.0f;
+	float  fogRange = 25.0f;
+	float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 1.0f);
+
+		float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
+
+	float4 litColor = ambient + directional + pointL + spot;
+	litColor = lerp(litColor, fogColor, fogLerp);
+
+	return litColor;
+
+	//return ambient + directional + pointL + spot;
 }

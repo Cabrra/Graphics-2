@@ -2,10 +2,10 @@
 
 struct V_IN
 {
-
 	float3 UVL : UV;
 	float3 normL : NORMAL;
 	float3 posL : POSITION;
+	float3 tang : TANGENT;
 };
 
 struct V_OUT
@@ -27,7 +27,7 @@ cbuffer SCENE : register(b1)
 	float4x4 projectionMatrix;
 }
 
-V_OUT main(V_IN input)
+V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 {
 	V_OUT output = (V_OUT)0;
 	// ensures translation is preserved during matrix multiply  

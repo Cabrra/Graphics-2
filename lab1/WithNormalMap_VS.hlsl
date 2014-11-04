@@ -5,6 +5,7 @@ struct V_IN
 	float3 UVL : UV;
 	float3 normL : NORMAL;
 	float3 posL : POSITION;
+	float3 tang : TANGENT;
 };
 
 struct V_OUT
@@ -26,16 +27,26 @@ cbuffer SCENE : register(b1)
 	float4x4 projectionMatrix;
 }
 
-V_OUT main(V_IN input)
+
+cbuffer INSTANCEMATRIX : register(b2)
+{
+	float4x4 position[100];
+}
+
+V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 {
 	V_OUT output = (V_OUT)0;
 	// ensures translation is preserved during matrix multiply  
 	float4 localH = float4(input.posL, 1.0f);
-		// move local space vertex from vertex buffer into world space.
 
-		// TODO: Move into view space, then projection space
-		//camera
-		localH = mul(localH, worldMatrix);
+	// move local space vertex from vertex buffer into world space.
+
+	// TODO: Move into view space, then projection space
+	//camera
+
+
+	localH = mul(localH, position[instan]);
+	output.unpos = localH;
 
 	localH = mul(localH, viewMatrix);
 
@@ -43,7 +54,8 @@ V_OUT main(V_IN input)
 
 	output.position = localH;
 	output.UVH = input.UVL;
-	output.normH = mul(input.normL, (float3x3)worldMatrix);
+	output.normH = mul(input.normL, (float3x3)position[instan]);
+	output.normH = normalize(output.normH);
 
 	return output; // send projected vertex to the rasterizer stage
 }

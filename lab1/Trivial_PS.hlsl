@@ -16,7 +16,7 @@ cbuffer DIRECTIONALLIGHT : register(b0)
 cbuffer POINTLIGHT : register(b1)
 {
 	float3 lightPos;
-	float padding;
+	float range;
 	float3 lightDir;
 	float radiusPoint;
 	float4 lightCol;
@@ -44,25 +44,38 @@ cbuffer SPECULAR : register(b3)
 	float4 color; // you don't need thois
 }
 
-float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
+cbuffer SCENE : register(b4)
+{
+	float4 viewPos;
+}
+
+float4 main(float3 baseUV : UV, float3 normals : NORMAL, 
+	float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 {
 
 	float4 baseColor;
-	float4 ambient = float4(0.1f, 0.1f, 0.1f, 1.0f);
+	float4 ambient = float4(0.1f, 0.1f, 0.1f, 0.5f);
 	baseColor = baseTexture.Sample(filters[0], baseUV);
-	ambient = (baseColor * ambient);
+
 	clip(baseColor.w < 0.85f ? -1 : 1);
+
+	ambient = (baseColor * ambient);
 
 	////Directional Light 
 	float dirRatio = saturate(dot(-DirlightDir, normals));
 	float4 directional = (dirRatio * DirlightCol * baseColor);
 
-	//Point light
-	float3 dir = normalize(lightPos - unpos);
-	float ratio = saturate(dot(dir, normals));
-	float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
-	atten *= atten;
-	float4 pointL = ratio * lightCol * baseColor * atten;
+		//Point light
+	float len = length(lightPos - unpos);
+	float4 pointL = float4 (0.0f, 0.0f, 0.0f, 1.0f);
+	if (len <= range)
+	{
+		float3 dir = normalize(lightPos - unpos);
+			float ratio = saturate(dot(dir, normals));
+		float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
+		atten *= atten;
+		pointL = ratio * lightCol * baseColor * atten;
+	}
 
 	//spot light
 	float3 sDir = normalize(spotPos - unpos);
@@ -73,6 +86,18 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 	float spotAtten = 1.0f - saturate((inner - surfaceRat) / (inner - outer));
 	float4 spot = spotRatio * spotCol * baseColor * innerAttenua * spotAtten;
 
+	//fog
+	float  fogStart = 25.0f;
+	float  fogRange = 25.0f;
+	float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 0.5f);
+
+		float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
+
+	float4 litColor = ambient + directional + pointL + spot;
+	return litColor = lerp(litColor, fogColor, fogLerp);
+
+	return litColor;
+
 	////Specular
 	//float4 viewdir = normalize(CamWorldPos - unpos);
 	//	float4	halfvect = normalize(((-DirlightDir2), 0) + viewdir);
@@ -80,5 +105,5 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 	//float4 spec = color * specInt * intense;
 
-	return ambient + directional + pointL + spot;
+	//return ambient + directional + pointL + spot;
 }
