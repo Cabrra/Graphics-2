@@ -51,7 +51,7 @@ cbuffer SCENE : register(b4)
 	float4 viewPos;
 }
 
-float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
+float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION, float3 tang : TANGENT) : SV_TARGET
 {
 
 	float4 ambient = float4(0.1f, 0.1f, 0.1f, 1.0f);
@@ -60,19 +60,31 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 		
 	ambient = (baseColor * ambient);
 
-	//normalize
-	//float3 N = (2.0 * (normalMap.Sample(filters[0], baseUV), baseUV)) - 1.0;
-	float3 N = normalMap.Sample(filters[0], baseUV);
-	// diffuse
-	//float D = saturate(dot(N, normalize(DirlightDir)));
+
+	float3 norMap = normalMap.Sample(filters[0], baseUV);
+	norMap = (2.0f * norMap) - 1.0f;
+		//TANGENTS 
+
+
+		// Build orthonormal basis.
+		float3 N = normals;
+		float3 T = normalize(tang - dot(tang, N)*N);
+		float3 B = cross(N, T);
+
+		float3x3 TBN = float3x3(T, B, N);
+
+		// Transform from tangent space to world space.
+		float3 bumpedNormal = mul(norMap, TBN);
+
+		normals = normalize(bumpedNormal);
 
 	////Directional Light 
-	float dirRatio = saturate(dot(-DirlightDir, N));
+		float dirRatio = saturate(dot(-DirlightDir, normals));
 	float4 directional = (dirRatio * DirlightCol * baseColor);
 
 	//Point light
 	float3 dir = normalize(lightPos - unpos);
-	float ratio = saturate(dot(dir, N));
+	float ratio = saturate(dot(dir, normals));
 	float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
 	atten *= atten;
 	float4 pointL = ratio * lightCol * baseColor * atten;
@@ -80,7 +92,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 	//spot light
 	float3 sDir = normalize(spotPos - unpos);
 	float surfaceRat = saturate(dot(-sDir, spotlightDir));
-	float spotRatio = saturate(dot(sDir, N));
+	float spotRatio = saturate(dot(sDir, normals));
 	float innerAttenua = 1.0f - saturate(length(spotPos - unpos) / radius);
 	innerAttenua *= innerAttenua;
 	float spotAtten = 1.0f - saturate((inner - surfaceRat) / (inner - outer));

@@ -50,7 +50,7 @@ using namespace std;
 //************************************************************
 
 class DEMO_APP
-{	
+{
 	HINSTANCE						application;
 	WNDPROC							appWndProc;
 	HWND							window;
@@ -111,7 +111,6 @@ class DEMO_APP
 	//object loader
 
 	int indexCount[6]; // one for each object type
-	int objectcount; //keep tracjk of indexes
 
 	XMVECTOR camPosition;
 	XMVECTOR camTarget;
@@ -179,7 +178,7 @@ class DEMO_APP
 	SEND_TO_WORLD					skytoShader;
 	SEND_TO_SCENE					StoShader[2];
 	//lights
-	SEND_DIRECTIONAL_LIGHT			directionalLight; 
+	SEND_DIRECTIONAL_LIGHT			directionalLight;
 	SEND_POINT_LIGHT				PointLightToS;
 	SEND_SPOT_LIGHT					SpotLightToS;
 	//fog
@@ -198,13 +197,13 @@ public:
 		XMFLOAT3 UV;
 		XMFLOAT3 norm;
 		XMFLOAT3 Pos;
-		float ID;
+		XMFLOAT3 tangent;
 	};
-	
+
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool ShutDown();
-	bool LoadObjectFromFile(string fileName);
+	bool LoadObjectFromFile(string fileName, int slot);
 	void CreateSphere(int LatLines, int LongLines);
 	void Input();
 };
@@ -217,55 +216,54 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 {
 	// ****************** BEGIN WARNING ***********************// 
 	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
-	application = hinst; 
-	appWndProc = proc; 
+	application = hinst;
+	appWndProc = proc;
 
 	WNDCLASSEX  wndClass;
-    ZeroMemory( &wndClass, sizeof( wndClass ) );
-    wndClass.cbSize         = sizeof( WNDCLASSEX );             
-    wndClass.lpfnWndProc    = appWndProc;						
-    wndClass.lpszClassName  = L"DirectXApplication";            
-	wndClass.hInstance      = application;		               
-    wndClass.hCursor        = LoadCursor( NULL, IDC_ARROW );    
-    wndClass.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME ); 
+	ZeroMemory(&wndClass, sizeof(wndClass));
+	wndClass.cbSize = sizeof(WNDCLASSEX);
+	wndClass.lpfnWndProc = appWndProc;
+	wndClass.lpszClassName = L"DirectXApplication";
+	wndClass.hInstance = application;
+	wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wndClass.hbrBackground = (HBRUSH)(COLOR_WINDOWFRAME);
 
-    RegisterClassEx( &wndClass );
+	RegisterClassEx(&wndClass);
 
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(	L"DirectXApplication", L"Lab 1a Line Land",	WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME|WS_MAXIMIZEBOX), 
-							CW_USEDEFAULT, CW_USEDEFAULT, window_size.right-window_size.left, window_size.bottom-window_size.top,					
-							NULL, NULL,	application, this );												
+	window = CreateWindow(L"DirectXApplication", L"Lab 1a Line Land", WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
+		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
+		NULL, NULL, application, this);
 
-    ShowWindow( window, SW_SHOW );
+	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
-		
-	objectcount = 0;
+
 	angle = 0.0f;
 
 	DXGI_SWAP_CHAIN_DESC sd;
-    ZeroMemory(&sd, sizeof(sd));
-    sd.BufferCount = 1;
-    sd.BufferDesc.Width =	BACKBUFFER_WIDTH;
-    sd.BufferDesc.Height =	BACKBUFFER_HEIGHT;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = window;
+	ZeroMemory(&sd, sizeof(sd));
+	sd.BufferCount = 1;
+	sd.BufferDesc.Width = BACKBUFFER_WIDTH;
+	sd.BufferDesc.Height = BACKBUFFER_HEIGHT;
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sd.BufferDesc.RefreshRate.Numerator = 60;
+	sd.BufferDesc.RefreshRate.Denominator = 1;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.OutputWindow = window;
 	sd.Windowed = false;
-    sd.SampleDesc.Count = 1;
-    sd.SampleDesc.Quality = 0;
-    sd.Windowed = TRUE;
+	sd.SampleDesc.Count = 1;
+	sd.SampleDesc.Quality = 0;
+	sd.Windowed = TRUE;
 
-	HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_DEBUG, 
-		nullptr, 0, D3D11_SDK_VERSION, &sd, &swapchain, &device, nullptr, &inmediateContext); 
-	 ID3D11Texture2D* backBuffer = nullptr;
-    hr = swapchain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), reinterpret_cast<void**>( &backBuffer ) );
-	
-    hr = device->CreateRenderTargetView( backBuffer, nullptr, &renderTargetView );
-    backBuffer->Release();
+	HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_DEBUG,
+		nullptr, 0, D3D11_SDK_VERSION, &sd, &swapchain, &device, nullptr, &inmediateContext);
+	ID3D11Texture2D* backBuffer = nullptr;
+	hr = swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer));
+
+	hr = device->CreateRenderTargetView(backBuffer, nullptr, &renderTargetView);
+	backBuffer->Release();
 
 	std::thread myLoadingThread = std::thread(LoadingThread, this);
 	//std::thread myStatLoadingThread = std::thread(StatuesLoadingThread, this);
@@ -273,12 +271,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	std::thread myLeavLoadingThread = std::thread(LeavesLoadingThread, this);
 
 	viewport = new D3D11_VIEWPORT;
-    viewport->Width =	(FLOAT)sd.BufferDesc.Width;
-    viewport->Height =	(FLOAT)sd.BufferDesc.Height;
-    viewport->MinDepth = 0.0f;
+	viewport->Width = (FLOAT)sd.BufferDesc.Width;
+	viewport->Height = (FLOAT)sd.BufferDesc.Height;
+	viewport->MinDepth = 0.0f;
 	viewport->MaxDepth = 1.0f;
-    viewport->TopLeftX = 0;
-    viewport->TopLeftY = 0;
+	viewport->TopLeftX = 0;
+	viewport->TopLeftY = 0;
 
 	hr = device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), nullptr, &vertexShader);
 	hr = device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &pixelShader);
@@ -289,7 +287,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreatePixelShader(WithNormalMap_PS, sizeof(WithNormalMap_PS), nullptr, &objectNormalMappingPS);
 	hr = device->CreateVertexShader(WithNormalMap_VS, sizeof(WithNormalMap_VS), nullptr, &objectNormalMappingVS);
 
-	
+
 
 	// Z BUFFER
 	D3D11_TEXTURE2D_DESC dbDesc;
@@ -390,9 +388,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	std::vector<int> myGroundIndex;
 
 	int vIndex = 0;
-	for (int z = 0; z<300; z++)
+	for (int z = 0; z < 300; z++)
 	{
-		for (int x = 0; x<300; x++)
+		for (int x = 0; x < 300; x++)
 		{
 			// first triangle
 			myGroundIndex.push_back(vIndex);
@@ -486,7 +484,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	cbd.ByteWidth = sizeof(SEND_TOINSTANCE);
 
 	hr = device->CreateBuffer(&cbd, nullptr, &instanceConstantBuffer);
-	
+
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
 		{ "UV", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT,
@@ -562,7 +560,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	XMFLOAT4 vec = XMFLOAT4(0.0f, 20.0f, -15.0f, 0.0f);
 	camPosition = XMLoadFloat4(&vec);
-	
+
 	XMFLOAT4 vec2 = XMFLOAT4(0.0f, 15.0f, 0.0f, 0.0f);
 	camTarget = XMLoadFloat4(&vec2);
 	XMFLOAT4 vec3 = XMFLOAT4(0.0f, 1.0f, 0.0f, 0.0f);
@@ -583,7 +581,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	WtoShader[2].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
 
 	directionalLight.pos = XMFLOAT3(-150.0f, 150.0f, -150.0f);
-	directionalLight.dir = XMFLOAT3( 2.0f, -1.0f, 2.0f);
+	directionalLight.dir = XMFLOAT3(2.0f, -1.0f, 2.0f);
 	directionalLight.col = XMFLOAT4(0.125f, 0.15f, 0.5f, 0.5f); //(65,105,225)
 
 	PointLightToS.pos = XMFLOAT3(-5.0f, 5.0f, -5.0f);
@@ -592,7 +590,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	PointLightToS.col = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.8f);
 	PointLightToS.rPoint = 3.5f;
 
-	SpotLightToS.pos = XMFLOAT3(0.0f,10.0f, 0.0f);
+	SpotLightToS.pos = XMFLOAT3(0.0f, 10.0f, 0.0f);
 	SpotLightToS.dir = XMFLOAT3(0.0f, -1.0f, 0.0f);
 	SpotLightToS.col = XMFLOAT4(0.0f, 1.0f, 1.0, 1.0f);
 	SpotLightToS.sPoint = 100.0f;
@@ -604,7 +602,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		float x, z;
 		x = -100 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / 200));
 		z = -100 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / 200));
-		
+
 		XMMATRIX move = XMMatrixIdentity();
 		move = XMMatrixTranslation(x, 0.0f, z);
 
@@ -612,7 +610,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		scaling *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
 
 		instanceToShader.world[i] = XMMatrixIdentity();
-		instanceToShader.world[i] *= scaling * move ;
+		instanceToShader.world[i] *= scaling * move;
 	}
 	WAIT_FOR_THREAD(&myLoadingThread);
 	WAIT_FOR_THREAD(&myLeavLoadingThread);
@@ -639,10 +637,10 @@ bool DEMO_APP::Run()
 	// glow
 	//PointLightToS.rPoint = 10.0f + 5.0f * cos(mytime) * sin(mytime);
 
-	
+
 	//spot light
 	angle += dt * CIRCLESPEED;
-	XMFLOAT3 position = XMFLOAT3(sinf(angle) * 30, 0.0f, cosf(angle)*30);
+	XMFLOAT3 position = XMFLOAT3(sinf(angle) * 30, 0.0f, cosf(angle) * 30);
 
 
 	SpotLightToS.pos = XMFLOAT3(position.x, SpotLightToS.pos.y, position.z);
@@ -665,7 +663,7 @@ bool DEMO_APP::Run()
 		SpotLightToS.col.x = 1.0f;
 	if (SpotLightToS.col.y > 1.0f)
 		SpotLightToS.col.y = 1.0f;
-	if (SpotLightToS.col.z  > 1.0f)
+	if (SpotLightToS.col.z > 1.0f)
 		SpotLightToS.col.z = 1.0f;
 
 	//fog effect
@@ -681,19 +679,19 @@ bool DEMO_APP::Run()
 		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
 		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-		
+
 
 		inmediateContext->OMSetDepthStencilState(stencilState, 0);
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
-		
+
 		inmediateContext->RSSetState(SkyrasterState);
 		inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
-		
+
 		skytoShader.World = XMMatrixIdentity();
 		XMMATRIX Scale = XMMatrixScaling(100.0f, 100.0f, 100.0f);
 		XMMATRIX Translation = XMMatrixTranslation(XMVectorGetX(StoShader[0].ViewM.r[0]), XMVectorGetY(StoShader[0].ViewM.r[1]), XMVectorGetZ(StoShader[0].ViewM.r[2]));
 		skytoShader.World = Scale * Translation;
-		
+
 		//infinite skybox
 		XMMATRIX aux = StoShader[0].ViewM;
 		aux.r[3].m128_f32[0] = aux.r[3].m128_f32[1] = aux.r[3].m128_f32[2] = 0.0f;
@@ -703,11 +701,11 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetConstantBuffers(0, 1, &cameraPositionBuffer);
 
 		D3D11_MAPPED_SUBRESOURCE  Resource;
-		
+
 		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &StoShader[1], sizeof(SEND_TO_SCENE));
 		inmediateContext->Unmap(SceneconstantBuffer, 0);
-		
+
 		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &skytoShader, sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
@@ -715,21 +713,21 @@ bool DEMO_APP::Run()
 		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
-		
+
 		inmediateContext->PSSetShader(SkypixelShader, nullptr, 0);
 		inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
 		UINT sstride = sizeof(SimpleVertex);
 		UINT soffset = 0;
-		
+
 		inmediateContext->IASetInputLayout(vertexLayout);
-		
+
 		inmediateContext->IASetVertexBuffers(0, 1, &SkyVertexbuffer, &sstride, &soffset);
 		inmediateContext->IASetIndexBuffer(SkyIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
-		
+
 		inmediateContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 		inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[0]);
-		
+
 		inmediateContext->DrawIndexed(sphereIndex, 0, 0);
 
 		//ground
@@ -815,7 +813,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
 		inmediateContext->Unmap(instanceConstantBuffer, 0);
 
-		inmediateContext->PSSetShader(/*objectNormalMappingPS*/ pixelShader, nullptr, 0);
+		inmediateContext->PSSetShader(objectNormalMappingPS /*pixelShader*/, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 		sstride = sizeof(SimpleVertex);
 		soffset = 0;
@@ -928,12 +926,12 @@ bool DEMO_APP::Run()
 
 	/*WAIT_FOR_THREAD(&myDrawingThread);
 	if (commandList)
-		inmediateContext->ExecuteCommandList(commandList, true);
+	inmediateContext->ExecuteCommandList(commandList, true);
 	SAFE_RELEASE(commandList);*/
 
 	swapchain->Present(0, 0);
 
-	return true; 
+	return true;
 }
 
 //************************************************************
@@ -988,10 +986,10 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(GroundVertexbuffer);
 	SAFE_DELETE(GroundVertexbuffer);
-	
+
 	SAFE_RELEASE(GroundIndexbuffer);
 	SAFE_DELETE(GroundIndexbuffer);
-	
+
 	for (int i = 0; i < 7; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
@@ -1014,7 +1012,7 @@ bool DEMO_APP::ShutDown()
 	{
 		SAFE_RELEASE(ObjectVertexbuffer[i]);
 		SAFE_DELETE(ObjectVertexbuffer[i]);
-	
+
 		SAFE_RELEASE(ObjectIndexbuffer[i]);
 		SAFE_DELETE(ObjectIndexbuffer[i]);
 	}
@@ -1072,8 +1070,8 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(Blending);
 	SAFE_DELETE(Blending);
-	
-	UnregisterClass(L"DirectXApplication", application); 
+
+	UnregisterClass(L"DirectXApplication", application);
 	return true;
 }
 
@@ -1083,39 +1081,39 @@ bool DEMO_APP::ShutDown()
 
 // ****************** BEGIN WARNING ***********************// 
 // WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY!
-	
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine,	int nCmdShow );						   
-LRESULT CALLBACK WndProc(HWND hWnd,	UINT message, WPARAM wparam, LPARAM lparam );		
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
-	DEMO_APP myApp(hInstance,(WNDPROC)WndProc);	
-    MSG msg; ZeroMemory( &msg, sizeof( msg ) );
-    while ( msg.message != WM_QUIT && myApp.Run() )
-    {	
-	    if ( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) )
-        { 
-            TranslateMessage( &msg );
-            DispatchMessage( &msg ); 
-        }
-    }
-	myApp.ShutDown(); 
-	return 0; 
+	DEMO_APP myApp(hInstance, (WNDPROC)WndProc);
+	MSG msg; ZeroMemory(&msg, sizeof(msg));
+	while (msg.message != WM_QUIT && myApp.Run())
+	{
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
+	myApp.ShutDown();
+	return 0;
 }
-LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam )
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    if(GetAsyncKeyState(VK_ESCAPE))
+	if (GetAsyncKeyState(VK_ESCAPE))
 		message = WM_DESTROY;
-    switch ( message )
-    {
-        case ( WM_DESTROY ): { PostQuitMessage( 0 ); }
-        break;
-    }
-    return DefWindowProc( hWnd, message, wParam, lParam );
+	switch (message)
+	{
+	case (WM_DESTROY) : { PostQuitMessage(0); }
+		break;
+	}
+	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 //********************* END WARNING ************************//
 
-bool DEMO_APP::LoadObjectFromFile(string fileName)
+bool DEMO_APP::LoadObjectFromFile(string fileName, int slot)
 {
 	HRESULT hr = 0;
 
@@ -1579,6 +1577,91 @@ bool DEMO_APP::LoadObjectFromFile(string fileName)
 
 	}
 
+	//tangents
+	std::vector<XMFLOAT3> tempTangent;
+	XMFLOAT3 tangent = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	float tcU1, tcV1, tcU2, tcV2;
+
+	edge1 = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	edge2 = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+	for (int i = 0; i < meshTriangles; ++i)
+	{
+
+		vecX = vertices[indices[(i * 3)]].Pos.x - vertices[indices[(i * 3) + 2]].Pos.x;
+		vecY = vertices[indices[(i * 3)]].Pos.y - vertices[indices[(i * 3) + 2]].Pos.y;
+		vecZ = vertices[indices[(i * 3)]].Pos.z - vertices[indices[(i * 3) + 2]].Pos.z;
+		edge1 = XMVectorSet(vecX, vecY, vecZ, 0.0f);
+
+		vecX = vertices[indices[(i * 3) + 2]].Pos.x - vertices[indices[(i * 3) + 1]].Pos.x;
+		vecY = vertices[indices[(i * 3) + 2]].Pos.y - vertices[indices[(i * 3) + 1]].Pos.y;
+		vecZ = vertices[indices[(i * 3) + 2]].Pos.z - vertices[indices[(i * 3) + 1]].Pos.z;
+		edge2 = XMVectorSet(vecX, vecY, vecZ, 0.0f);
+
+		XMStoreFloat3(&unnormalized, XMVector3Cross(edge1, edge2));
+
+		tempNormal.push_back(unnormalized);
+
+		tcU1 = vertices[indices[(i * 3)]].UV.x - vertices[indices[(i * 3) + 2]].UV.x;
+		tcV1 = vertices[indices[(i * 3)]].UV.y - vertices[indices[(i * 3) + 2]].UV.y;
+
+		tcU2 = vertices[indices[(i * 3) + 2]].UV.x - vertices[indices[(i * 3) + 1]].UV.x;
+		tcV2 = vertices[indices[(i * 3) + 2]].UV.y - vertices[indices[(i * 3) + 1]].UV.y;
+
+		tangent.x = (tcV1 * XMVectorGetX(edge1) - tcV2 * XMVectorGetX(edge2)) * (1.0f / (tcU1 * tcV2 - tcU2 * tcV1));
+		tangent.y = (tcV1 * XMVectorGetY(edge1) - tcV2 * XMVectorGetY(edge2)) * (1.0f / (tcU1 * tcV2 - tcU2 * tcV1));
+		tangent.z = (tcV1 * XMVectorGetZ(edge1) - tcV2 * XMVectorGetZ(edge2)) * (1.0f / (tcU1 * tcV2 - tcU2 * tcV1));
+
+		tempTangent.push_back(tangent);
+	}
+
+	normalSum = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	XMVECTOR tangentSum = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	facesUsing = 0;
+
+	for (int i = 0; i < totalVerts; ++i)
+	{
+		for (int j = 0; j < meshTriangles; ++j)
+		{
+			if (indices[j * 3] == i ||
+				indices[(j * 3) + 1] == i ||
+				indices[(j * 3) + 2] == i)
+			{
+				tX = XMVectorGetX(normalSum) + tempNormal[j].x;
+				tY = XMVectorGetY(normalSum) + tempNormal[j].y;
+				tZ = XMVectorGetZ(normalSum) + tempNormal[j].z;
+
+				normalSum = XMVectorSet(tX, tY, tZ, 0.0f);
+
+				tX = XMVectorGetX(tangentSum) + tempTangent[j].x;
+				tY = XMVectorGetY(tangentSum) + tempTangent[j].y;
+				tZ = XMVectorGetZ(tangentSum) + tempTangent[j].z;
+
+				tangentSum = XMVectorSet(tX, tY, tZ, 0.0f);
+
+				facesUsing++;
+			}
+		}
+
+		normalSum = normalSum / facesUsing;
+		tangentSum = tangentSum / facesUsing;
+
+		normalSum = XMVector3Normalize(normalSum);
+		tangentSum = XMVector3Normalize(tangentSum);
+
+		vertices[i].norm.x = XMVectorGetX(normalSum);
+		vertices[i].norm.y = XMVectorGetY(normalSum);
+		vertices[i].norm.z = XMVectorGetZ(normalSum);
+
+		vertices[i].tangent.x = XMVectorGetX(tangentSum);
+		vertices[i].tangent.y = XMVectorGetY(tangentSum);
+		vertices[i].tangent.z = XMVectorGetZ(tangentSum);
+
+		normalSum = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+		tangentSum = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+		facesUsing = 0;
+	}
+
 	//Create index buffer
 	D3D11_BUFFER_DESC indexBufferDesc;
 	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
@@ -1592,10 +1675,7 @@ bool DEMO_APP::LoadObjectFromFile(string fileName)
 	D3D11_SUBRESOURCE_DATA iinitData;
 
 	iinitData.pSysMem = &indices[0];
-	device->CreateBuffer(&indexBufferDesc, &iinitData, &ObjectIndexbuffer[objectcount]);
-
-	for (int i = 0; i < totalVerts; i++)
-		vertices[i].ID = 0;
+	device->CreateBuffer(&indexBufferDesc, &iinitData, &ObjectIndexbuffer[slot]);
 
 	//Create Vertex Buffer
 	D3D11_BUFFER_DESC vertexBufferDesc;
@@ -1611,10 +1691,9 @@ bool DEMO_APP::LoadObjectFromFile(string fileName)
 
 	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
 	vertexBufferData.pSysMem = &vertices[0];
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &ObjectVertexbuffer[objectcount]);
+	hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &ObjectVertexbuffer[slot]);
 
-	indexCount[objectcount] = meshTriangles * 3;
-	objectcount++;
+	indexCount[slot] = meshTriangles * 3;
 
 	return true;
 }
@@ -1742,13 +1821,12 @@ void DEMO_APP::CreateSphere(int LatLines, int LongLines)
 	hr = device->CreateBuffer(&indexBufferDesc, &iinitData, &SkyIndexbuffer);
 
 	sphereIndex = NumSphereFaces * 3;
-
 }
 
 void DEMO_APP::Input()
 {
 	XMMATRIX mat = XMMatrixInverse(nullptr, StoShader[0].ViewM);
-	
+
 	if (GetAsyncKeyState('W'))
 	{
 		mat = XMMatrixTranslation(0.0f, 15.0f * dt, 0.0f) * mat;
@@ -1823,22 +1901,22 @@ void LoadingThread(DEMO_APP* myApp)
 
 void StatuesLoadingThread(DEMO_APP* myApp)
 {
-	myApp->LoadObjectFromFile("Assets//Models//monkstatue.obj");
+	myApp->LoadObjectFromFile("Assets//Models//monkstatue.obj", 2);
 }
 
 void ObjectLoadingThread(DEMO_APP* myApp)
 {
-	myApp->LoadObjectFromFile("Assets//Models//LowPoly_Male_MKC_3D_ARTS.obj");
+	myApp->LoadObjectFromFile("Assets//Models//LowPoly_Male_MKC_3D_ARTS.obj", 3); //werewolf
 }
 
 void FolliageLoadingThread(DEMO_APP* myApp)
 {
-	myApp->LoadObjectFromFile("Assets//Models//conifer.obj");
+	myApp->LoadObjectFromFile("Assets//Models//conifer.obj", 1);
 }
 
 void LeavesLoadingThread(DEMO_APP* myApp)
 {
-	myApp->LoadObjectFromFile("Assets//Models//leaves.obj");
+	myApp->LoadObjectFromFile("Assets//Models//leaves.obj", 0);
 }
 
 void DrawingThread(DEMO_APP* myApp)

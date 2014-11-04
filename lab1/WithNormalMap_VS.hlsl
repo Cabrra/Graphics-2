@@ -5,7 +5,7 @@ struct V_IN
 	float3 UVL : UV;
 	float3 normL : NORMAL;
 	float3 posL : POSITION;
-	float3 tang : TANGENT;
+	float3 tangL : TANGENT;
 };
 
 struct V_OUT
@@ -14,6 +14,7 @@ struct V_OUT
 	float3 normH : NORMAL;  //needs to be in world space -> multiply by world
 	float4 position : SV_POSITION; 
 	float3 unpos : POSITION; // unaltered position
+	float3 tang : TANGENT;
 };
 
 cbuffer OBJECT : register(b0)
@@ -56,6 +57,8 @@ V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 	output.UVH = input.UVL;
 	output.normH = mul(input.normL, (float3x3)position[instan]);
 	output.normH = normalize(output.normH);
+	output.tang = mul(input.tangL, (float3x3)position[instan]);
+
 
 	return output; // send projected vertex to the rasterizer stage
 }
