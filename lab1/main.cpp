@@ -567,10 +567,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	StoShader[1].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
 	//new viewport
 	StoShader[2].ViewM = XMMatrixIdentity(); 
-	StoShader[2].ProjectM = XMMatrixOrthographicLH((BACKBUFFER_WIDTH*0.25f), (BACKBUFFER_HEIGHT*0.25f), 0.1f, 300.0f);
+	StoShader[2].ProjectM = XMMatrixOrthographicLH((BACKBUFFER_WIDTH*0.15f), (BACKBUFFER_HEIGHT*0.2f), 0.1f, 300.0f);
 
 
-	XMFLOAT4 vec = XMFLOAT4(0.0f, 20.0f, -15.0f, 0.0f);
+	XMFLOAT4 vec = XMFLOAT4(0.0f, 10.0f, -15.0f, 0.0f);
 	camPosition = XMLoadFloat4(&vec);
 	XMFLOAT4 vec2 = XMFLOAT4(0.0f, 15.0f, 0.0f, 0.0f);
 	camTarget = XMLoadFloat4(&vec2);
@@ -617,6 +617,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	SpotLightToS.sPoint = 100.0f;
 	SpotLightToS.inner = 0.72f;
 	SpotLightToS.outer = 0.62f;
+	SpotLightToS.padding = 1.0f;
 
 	for (int i = 0; i < 100; i++)
 	{
@@ -687,6 +688,7 @@ bool DEMO_APP::Run()
 	if (SpotLightToS.col.z > 1.0f)
 		SpotLightToS.col.z = 1.0f;
 
+	SpotLightToS.padding = 1.0f;
 
 	if (shaderResourceView[0] && shaderResourceView[1])
 	{
@@ -733,6 +735,10 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+		
 		inmediateContext->PSSetShader(SkypixelShader, nullptr, 0);
 		inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
 		UINT sstride = sizeof(SimpleVertex);
@@ -943,6 +949,7 @@ bool DEMO_APP::Run()
 	}
 
 	//viewport2
+	SpotLightToS.padding = 0.0f;
 	inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
 
 	inmediateContext->RSSetViewports(1, differentViewport);

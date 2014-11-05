@@ -86,17 +86,21 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 	float spotAtten = 1.0f - saturate((inner - surfaceRat) / (inner - outer));
 	float4 spot = spotRatio * spotCol * baseColor * innerAttenua * spotAtten;
 
-	//fog
-	float  fogStart = 25.0f;
-	float  fogRange = 25.0f;
-	float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 0.5f);
+	//fog 
+	float4 litColor = ambient + directional + pointL + spot;
+	if (pad == 1.0f && length(viewPos) < 150)
+	{
+		float  fogStart = 15.0f;
+		float  fogRange = 15.0f;
+		float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 1.0f);
 
 		float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
 
-	float4 litColor = ambient + directional + pointL + spot;
-	return litColor = lerp(litColor, fogColor, fogLerp);
+		litColor = lerp(litColor, fogColor, fogLerp);
+	}
 
 	return litColor;
+
 
 	////Specular
 	//float4 viewdir = normalize(CamWorldPos - unpos);

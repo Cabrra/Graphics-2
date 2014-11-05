@@ -4,6 +4,17 @@ cbuffer SCENE : register(b0)
 {
 	float4 viewPos;
 }
+cbuffer SPOTLIGHT : register(b2)
+{
+	float3 spotPos;
+	float pad;
+	float3 spotlightDir;
+	float radius;
+	float4 spotCol;
+	float inner;
+	float outer;
+	float2 morepadding;
+}
 
 textureCUBE baseTexture : register(t0); // first texture
 
@@ -13,16 +24,23 @@ float4 main(float3 baseUV : UV, float4 position : SV_POSITION, float3 normals : 
 {
 	float4 baseColor;
 
-	return baseColor = baseTexture.Sample(filters[0], baseUV);
+	/*return*/ baseColor = baseTexture.Sample(filters[0], baseUV);
 
-	float  fogStart = 25.0f;
-	 float  fogRange = 25.0f;
-	 float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 1.0f);
+	//if (pad == 1.0f)
+	//{
+	//fog 
 
-		 float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
+		if (pad == 1.0f && length(viewPos) < 150)
+		{
+			float  fogStart = 15.0f;
+			float  fogRange = 15.0f;
+			float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 1.0f);
 
-	float4 litColor = lerp(baseColor, fogColor, fogLerp);
+			float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
 
-	 return litColor;
+			baseColor = lerp(baseColor, fogColor, fogLerp);
+		}
+
+	return baseColor;
 
 }
