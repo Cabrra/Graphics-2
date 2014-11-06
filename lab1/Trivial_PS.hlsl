@@ -57,7 +57,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 	float4 ambient = float4(0.1f, 0.1f, 0.1f, 0.5f);
 	baseColor = baseTexture.Sample(filters[0], baseUV);
 
-	clip(baseColor.w < 0.85f ? -1 : 1);
+	//clip(baseColor.w < 0.85f ? -1 : 1);
 
 	ambient = (baseColor * ambient);
 
@@ -88,7 +88,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 
 	//fog 
 	float4 litColor = ambient + directional + pointL + spot;
-	if (pad == 1.0f && length(viewPos) < 150)
+	if (pad == 1.0f && length(viewPos) < 80) //&& length(viewPos.z) < 30))
 	{
 		float  fogStart = 15.0f;
 		float  fogRange = 15.0f;

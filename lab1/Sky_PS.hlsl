@@ -20,7 +20,9 @@ textureCUBE baseTexture : register(t0); // first texture
 
 SamplerState filters[1] : register(s0); // filter 0 using CLAMP, filter 1 using WRAP
 
-float4 main(float3 baseUV : UV, float4 position : SV_POSITION, float3 normals : NORMAL, float3 unpos : POSITION) : SV_TARGET
+//float4 main(float3 baseUV : UV, float4 position : SV_POSITION, float3 normals : NORMAL, float3 unpos : POSITION) : SV_TARGET
+float4 main(float3 baseUV : UV, float3 normals : NORMAL,
+float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 {
 	float4 baseColor;
 
@@ -30,7 +32,7 @@ float4 main(float3 baseUV : UV, float4 position : SV_POSITION, float3 normals : 
 	//{
 	//fog 
 
-		if (pad == 1.0f && length(viewPos) < 150)
+	if (pad == 1.0f && length(viewPos) < 80) //&& length(viewPos.z) < 30))
 		{
 			float  fogStart = 15.0f;
 			float  fogRange = 15.0f;
