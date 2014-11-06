@@ -406,34 +406,36 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreateShaderResourceView(RTTTextureMap, &srDesc, &shaderResourceViewMap);
 
 	//STELCIL
-	D3D11_DEPTH_STENCIL_DESC dsDesc;
-	ZeroMemory(&dsDesc, sizeof(dsDesc));
-	dsDesc.DepthEnable = true;
-	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+	ZeroMemory(&depthStencilDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
+	// Depth test parameters
+	depthStencilDesc.DepthEnable = true;
+	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	// Stencil test parameters
+	depthStencilDesc.StencilEnable = true;
+	depthStencilDesc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+	depthStencilDesc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+	// Stencil operations if pixel is front-facing
+	depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	// Stencil operations if pixel is back-facing.
+	depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+	depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-	dsDesc.StencilEnable = false;
-	dsDesc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
-	dsDesc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+	hr = device->CreateDepthStencilState(&depthStencilDesc, &stencilState);
 
-	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
+	ZeroMemory(&depthStencilViewDesc, sizeof(D3D11_DEPTH_STENCIL_VIEW_DESC));
+	depthStencilViewDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.Texture2D.MipSlice = 0;
 
-	hr = device->CreateDepthStencilState(&dsDesc, &stencilState);
-
-	D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-
-	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Texture2D.MipSlice = 0;
-
-	device->CreateDepthStencilView(zBuffer, NULL, &stencilView);
+	hr = device->CreateDepthStencilView(zBuffer, &depthStencilViewDesc, &stencilView);
 
 	D3D11_SAMPLER_DESC sampDesc;
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
@@ -444,6 +446,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	sampDesc.MinLOD = 0;
 	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	//Create the Sample State
+	hr = device->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
 
 	//Ground
 	std::vector<SimpleVertex> myground;
@@ -521,9 +526,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreateBuffer(&Ibd, &indexInitData, &GroundIndexbuffer);
 
 	groundIndex = myGroundIndex.size();
-
-	//Create the Sample State
-	hr = device->CreateSamplerState(&sampDesc, &CubesTexSamplerState);
 
 	D3D11_BUFFER_DESC cbd;
 	ZeroMemory(&cbd, sizeof(cbd));
@@ -882,6 +884,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	//WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	WtoShader[2].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
+	WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 
 	WtoShader[7].World *= XMMatrixScaling(5.0f, 5.0f, 5.0f) * XMMatrixTranslation(125.0f, 8.0f, 125.0f);
 
@@ -1008,6 +1011,7 @@ bool DEMO_APP::Run()
 
 		XMMATRIX rotateY = XMMatrixIdentity();
 		XMMATRIX rotateZ = XMMatrixIdentity();
+		XMMATRIX rotateX = XMMatrixIdentity();
 
 		XMFLOAT3 rot = XMFLOAT3(0.0f, 1.0f, 0.0f);
 		XMVECTOR aux = XMLoadFloat3(&rot);
@@ -1015,14 +1019,18 @@ bool DEMO_APP::Run()
 
 		rot = XMFLOAT3(0.0f, 0.0f, 1.0f);
 		aux = XMLoadFloat3(&rot);
-		rotateZ *= XMMatrixRotationAxis(aux, 0.75f * dt);
+		rotateZ *= XMMatrixRotationAxis(aux, -dt);
 
-		rotationRTT *= rotateY *rotateZ;
+		rot = XMFLOAT3(1.0f, 0.0f, 0.0f);
+		aux = XMLoadFloat3(&rot);
+		rotateX *= XMMatrixRotationAxis(aux, 0.7f * dt);
+
+		rotationRTT *= rotateX * rotateY *rotateZ;
 
 		WtoShader[6].World = scaling * rotationRTT * translation;
 
 		inmediateContext->OMSetRenderTargets(1, &RTTrenderTargetView, RTTstencilView);
-		inmediateContext->ClearRenderTargetView(RTTrenderTargetView, Colors::BlanchedAlmond);
+		inmediateContext->ClearRenderTargetView(RTTrenderTargetView, Colors::CornflowerBlue);
 		inmediateContext->ClearDepthStencilView(RTTstencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 
 		inmediateContext->RSSetViewports(1, RTTviewport);
@@ -1038,8 +1046,7 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(3, 1, &SpecularConstantBuffer);
-		
-		//inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
+
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
 
 		D3D11_MAPPED_SUBRESOURCE  Resource;
@@ -1088,19 +1095,19 @@ bool DEMO_APP::Run()
 
 		//skybox
 		inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
+		inmediateContext->OMSetDepthStencilState(stencilState, 1);
+		inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 		inmediateContext->RSSetViewports(1, viewport);
 
 		inmediateContext->ClearRenderTargetView(renderTargetView, Colors::MidnightBlue);
 		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
 		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
-		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
 		inmediateContext->OMSetDepthStencilState(stencilState, 0);
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
 
 		inmediateContext->RSSetState(SkyrasterState);
-		inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 
 		skytoShader.World = XMMatrixIdentity();
 		XMMATRIX Scale = XMMatrixScaling(100.0f, 100.0f, 100.0f);
@@ -1145,57 +1152,6 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[0]);
 
 		inmediateContext->DrawIndexed(sphereIndex, 0, 0);
-
-		//ground
-
-		//ligths
-		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-		inmediateContext->RSSetState(rasterState);
-
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-		inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		inmediateContext->GSSetShader(geometryshader, nullptr, 0);
-		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
-		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
-		inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
-		inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
-
-		inmediateContext->DrawIndexed(groundIndex, 0, 0);
 
 		//magic box
 		inmediateContext->GSSetShader(nullptr, nullptr, 0);
@@ -1245,6 +1201,8 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(36, 0, 0);
 
 		//trees
+		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
+
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1296,6 +1254,8 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
 		
 		//leaves
+		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
+
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1307,7 +1267,7 @@ bool DEMO_APP::Run()
 		inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
+		memcpy(Resource.pData, &WtoShader[3], sizeof(SEND_TO_WORLD));
 		inmediateContext->Unmap(WorldconstantBuffer, 0);
 
 		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1336,11 +1296,60 @@ bool DEMO_APP::Run()
 		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[0], &sstride, &soffset);
 		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[0], DXGI_FORMAT_R32_UINT, 0);
 
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST_ADJ);
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[4]);
 		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[6]);
 
-		inmediateContext->DrawIndexedInstanced(indexCount[0], 100, 0, 0, 0);
+		inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
+
+		//ground
+		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+		inmediateContext->RSSetState(rasterState);
+
+		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+		inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
+		inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
+		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
+		inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
+		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+		inmediateContext->Unmap(cameraPositionBuffer, 0);
+
+		inmediateContext->GSSetShader(geometryshader, nullptr, 0);
+		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+		sstride = sizeof(SimpleVertex);
+		soffset = 0;
+
+		inmediateContext->IASetInputLayout(vertexLayout);
+
+		inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
+		inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+		inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
+		inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
+
+		inmediateContext->DrawIndexed(groundIndex, 0, 0);
 	}
 
 	//viewport2
@@ -1358,7 +1367,6 @@ bool DEMO_APP::Run()
 	inmediateContext->PSSetSamplers(0, 1, &samplerState);
 
 	inmediateContext->RSSetState(SkyrasterState);
-	inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 
 	inmediateContext->PSSetConstantBuffers(0, 1, &cameraPositionBuffer);
 
@@ -1534,7 +1542,7 @@ bool DEMO_APP::Run()
 	memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
 	inmediateContext->Unmap(instanceConstantBuffer, 0);
 
-	inmediateContext->PSSetShader(objectNormalMappingPS /*pixelShader*/, nullptr, 0);
+	inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 	inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 	sstride = sizeof(SimpleVertex);
 	soffset = 0;
@@ -1551,6 +1559,7 @@ bool DEMO_APP::Run()
 	inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
 
 	//leaves
+	WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1562,7 +1571,7 @@ bool DEMO_APP::Run()
 	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
+	memcpy(Resource.pData, &WtoShader[3], sizeof(SEND_TO_WORLD));
 	inmediateContext->Unmap(WorldconstantBuffer, 0);
 
 	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1591,10 +1600,10 @@ bool DEMO_APP::Run()
 	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[4]);
 	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[6]);
 
-	inmediateContext->DrawIndexedInstanced(indexCount[0], 100, 0, 0, 0);
+	inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
 
 	WtoShader[2].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
-	
+	WtoShader[3].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
 	/*WAIT_FOR_THREAD(&myDrawingThread);
 	if (commandList)
 	inmediateContext->ExecuteCommandList(commandList, true);

@@ -17,7 +17,7 @@ cbuffer DIRECTIONALLIGHT : register(b0)
 cbuffer POINTLIGHT : register(b1)
 {
 	float3 lightPos;
-	float padding;
+	float range;
 	float3 lightDir;
 	float radiusPoint;
 	float4 lightCol;
@@ -56,7 +56,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 	float4 ambient = float4(0.1f, 0.1f, 0.1f, 1.0f);
 	float4 baseColor = baseTexture.Sample(filters[0], baseUV);
-	clip(baseColor.w < 0.85f ? -1 : 1);
+	clip(baseColor.w < 0.35f ? -1 : 1);
 		
 	ambient = (baseColor * ambient);
 
@@ -83,11 +83,16 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 	float4 directional = (dirRatio * DirlightCol * baseColor);
 
 	//Point light
-	float3 dir = normalize(lightPos - unpos);
-	float ratio = saturate(dot(dir, normals));
-	float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
-	atten *= atten;
-	float4 pointL = ratio * lightCol * baseColor * atten;
+	float len = length(lightPos - unpos);
+	float4 pointL = float4 (0.0f, 0.0f, 0.0f, 1.0f);
+		if (len <= range)
+		{
+		float3 dir = normalize(lightPos - unpos);
+			float ratio = saturate(dot(dir, normals));
+		float atten = 1.0 - saturate(length(lightPos - unpos) / radiusPoint);
+		atten *= atten;
+		pointL = ratio * lightCol * baseColor * atten;
+		}
 
 	//spot light
 	float3 sDir = normalize(spotPos - unpos);
