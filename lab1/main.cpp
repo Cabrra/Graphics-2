@@ -617,7 +617,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rasterDesc.MultisampleEnable = false;
 	rasterDesc.ScissorEnable = false;
 	rasterDesc.SlopeScaledDepthBias = 0.0f;
-
+	//a
 	hr = device->CreateRasterizerState(&rasterDesc, &rasterState);
 
 	D3D11_BLEND_DESC blendDesc;
