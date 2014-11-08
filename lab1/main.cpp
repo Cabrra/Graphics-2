@@ -23,6 +23,8 @@ using namespace DirectX;
 #include "MultitexturePS.csh"
 #include "MultitexturedVS.csh"
 #include "NothingPS.csh"
+#include "CubeVS.csh"
+#include "cubeGS.csh"
 
 #include "Sky_VS.csh"
 #include "DDSTextureLoader.h"
@@ -75,6 +77,8 @@ class DEMO_APP
 	ID3D11PixelShader*				multiTexturingPS;
 	ID3D11VertexShader*				multiTexturingVS;
 	ID3D11PixelShader*				noLPS;
+	ID3D11VertexShader*				CubeVertexShader;
+	ID3D11GeometryShader*			CubeGeometryShader;
 
 	ID3D11Texture2D*				zBuffer;
 	ID3D11DepthStencilState *		stencilState;
@@ -126,7 +130,6 @@ class DEMO_APP
 	D3D11_VIEWPORT*					RTTviewport;
 	//cube
 	ID3D11Buffer*					cubeVertexbuffer;
-	ID3D11Buffer*					cubeIndexbuffer;
 	//object loader
 
 	int indexCount[6]; // one for each object type
@@ -335,6 +338,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreatePixelShader(MultitexturePS, sizeof(MultitexturePS), nullptr, &multiTexturingPS);
 	hr = device->CreateVertexShader(MultitexturedVS, sizeof(MultitexturedVS), nullptr, &multiTexturingVS);
 	hr = device->CreatePixelShader(NothingPS, sizeof(NothingPS), nullptr, &noLPS);
+	hr = device->CreateVertexShader(CubeVS, sizeof(CubeVS), nullptr, &CubeVertexShader);
+	hr = device->CreateGeometryShader(cubeGS, sizeof(cubeGS), nullptr, &CubeGeometryShader);
+
 
 	// Z BUFFER
 	D3D11_TEXTURE2D_DESC dbDesc;
@@ -617,6 +623,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rasterDesc.MultisampleEnable = false;
 	rasterDesc.ScissorEnable = false;
 	rasterDesc.SlopeScaledDepthBias = 0.0f;
+
 	//a
 	hr = device->CreateRasterizerState(&rasterDesc, &rasterState);
 
@@ -627,15 +634,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ZeroMemory(&rtbd, sizeof(rtbd));
 
 	rtbd.BlendEnable = true;
-	rtbd.SrcBlend = D3D11_BLEND_SRC_COLOR;
-	rtbd.DestBlend = D3D11_BLEND_BLEND_FACTOR;
+	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
-	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
-	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	rtbd.DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
 
-	blendDesc.AlphaToCoverageEnable = false;
+	blendDesc.AlphaToCoverageEnable = true;
 	blendDesc.RenderTarget[0] = rtbd;
 
 	device->CreateBlendState(&blendDesc, &Blending);
@@ -655,103 +662,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sampd.MaxLOD = D3D11_FLOAT32_MAX;
 	sampd.MinLOD = 0;
 	//CUBE
-	SimpleVertex myCube[24];
+	SimpleVertex myCubePoint[1];
 
-	//top
-	myCube[0].Pos = XMFLOAT3(-1.0f, 1.0f, 1.0f);
-	myCube[1].Pos = XMFLOAT3(1.0f, 1.0f, 1.0f);
-	myCube[2].Pos = XMFLOAT3(1.0f, 1.0f, -1.0f);
-	myCube[3].Pos = XMFLOAT3(-1.0f, 1.0f, -1.0f);
-
-	myCube[0].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	myCube[1].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[2].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-	myCube[3].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-
-	myCube[0].norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[1].norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[2].norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[3].norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
-
-	//bottom
-	myCube[4].Pos = XMFLOAT3(-1.0f, -1.0f, 1.0f);
-	myCube[5].Pos = XMFLOAT3(1.0f, -1.0f, 1.0f);
-	myCube[6].Pos = XMFLOAT3(1.0f, -1.0f, -1.0f);
-	myCube[7].Pos = XMFLOAT3(-1.0f, -1.0f, -1.0f);
-
-	myCube[4].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[5].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-	myCube[6].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[7].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-
-	myCube[4].norm = XMFLOAT3(0.0f, -1.0f, 0.0f);
-	myCube[5].norm = XMFLOAT3(0.0f, -1.0f, 0.0f);
-	myCube[6].norm = XMFLOAT3(0.0f, -1.0f, 0.0f);
-	myCube[7].norm = XMFLOAT3(0.0f, -1.0f, 0.0f);
-
-	//left
-	myCube[8].Pos = XMFLOAT3(-1.0f, 1.0f, -1.0f);
-	myCube[9].Pos = XMFLOAT3(-1.0f, 1.0f, 1.0f);
-	myCube[10].Pos = XMFLOAT3(-1.0f, -1.0f, 1.0f);
-	myCube[11].Pos = XMFLOAT3(-1.0f, -1.0f, -1.0f);
-
-	myCube[8].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[9].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	myCube[10].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[11].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-
-	myCube[8].norm = XMFLOAT3(-1.0f, 0.0f, 0.0f);
-	myCube[9].norm = XMFLOAT3(-1.0f, 0.0f, 0.0f);
-	myCube[10].norm = XMFLOAT3(-1.0f, 0.0f, 0.0f);
-	myCube[11].norm = XMFLOAT3(-1.0f, 0.0f, 0.0f);
-
-	//right
-	myCube[12].Pos = XMFLOAT3(1.0f, 1.0f, -1.0f);
-	myCube[13].Pos = XMFLOAT3(1.0f, 1.0f, 1.0f);
-	myCube[14].Pos = XMFLOAT3(1.0f, -1.0f, 1.0f);
-	myCube[15].Pos = XMFLOAT3(1.0f, -1.0f, -1.0f);
-
-	myCube[12].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	myCube[13].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[14].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-	myCube[15].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-
-	myCube[12].norm = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[13].norm = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[14].norm = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[15].norm = XMFLOAT3(1.0f, 0.0f, 0.0f);
-
-	//back
-	myCube[16].Pos = XMFLOAT3(-1.0f, 1.0f, 1.0f);
-	myCube[17].Pos = XMFLOAT3(1.0f, 1.0f, 1.0f);
-	myCube[18].Pos = XMFLOAT3(1.0f, -1.0f, 1.0f);
-	myCube[19].Pos = XMFLOAT3(-1.0f, -1.0f, 1.0f);
-
-	myCube[16].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[17].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	myCube[18].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	myCube[19].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-
-	myCube[16].norm = XMFLOAT3(0.0f, 0.0f, 1.0f);
-	myCube[17].norm = XMFLOAT3(0.0f, 0.0f, 1.0f);
-	myCube[18].norm = XMFLOAT3(0.0f, 0.0f, 1.0f);
-	myCube[19].norm = XMFLOAT3(0.0f, 0.0f, 1.0f);
-
-	//front
-	myCube[20].Pos = XMFLOAT3(-1.0f, 1.0f, -1.0f);
-	myCube[21].Pos = XMFLOAT3(1.0f, 1.0f, -1.0f);
-	myCube[22].Pos = XMFLOAT3(1.0f, -1.0f, -1.0f);
-	myCube[23].Pos = XMFLOAT3(-1.0f, -1.0f, -1.0f);
-
-	myCube[20].UV = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	myCube[21].UV = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	myCube[22].UV = XMFLOAT3(1.0f, 1.0f, 0.0f);
-	myCube[23].UV = XMFLOAT3(0.0f, 1.0f, 0.0f);
-
-	myCube[20].norm = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	myCube[21].norm = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	myCube[22].norm = XMFLOAT3(0.0f, 0.0f, -1.0f);
-	myCube[23].norm = XMFLOAT3(0.0f, 0.0f, -1.0f);
+	myCubePoint[0].Pos = XMFLOAT3(125.0f, 5.0f, 125.0f);
 
 	//To VRAM
 	D3D11_BUFFER_DESC cubd;
@@ -759,74 +672,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	cubd.Usage = D3D11_USAGE_IMMUTABLE;
 	cubd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	cubd.CPUAccessFlags = NULL;
-	cubd.ByteWidth = sizeof(SimpleVertex) * 24;
+	cubd.ByteWidth = sizeof(SimpleVertex);
 	cubd.MiscFlags = 0; //unused
 	cubd.StructureByteStride = sizeof(SimpleVertex);
 
 	ZeroMemory(&InitData, sizeof(InitData));
-	InitData.pSysMem = myCube;
+	InitData.pSysMem = &myCubePoint;
 
 	hr = device->CreateBuffer(&cubd, &InitData, &cubeVertexbuffer);
-
-	unsigned short myCubeIndex[36];
-
-	//1t
-	myCubeIndex[0] = 0;
-	myCubeIndex[1] = 1;
-	myCubeIndex[2] = 2;
-	myCubeIndex[3] = 2;
-	myCubeIndex[4] = 3;
-	myCubeIndex[5] = 0;
-	//2b
-	myCubeIndex[6] = 4;
-	myCubeIndex[7] = 6;
-	myCubeIndex[8] = 5;
-	myCubeIndex[9] = 6;
-	myCubeIndex[10] = 4;
-	myCubeIndex[11] = 7;
-	//3l
-	myCubeIndex[12] = 9;
-	myCubeIndex[13] = 8;
-	myCubeIndex[14] = 10;
-	myCubeIndex[15] = 10;
-	myCubeIndex[16] = 8;
-	myCubeIndex[17] = 11;
-	//4r
-	myCubeIndex[18] = 12;
-	myCubeIndex[19] = 13;
-	myCubeIndex[20] = 14;
-	myCubeIndex[21] = 14;
-	myCubeIndex[22] = 15;
-	myCubeIndex[23] = 12;
-	//5		    
-	myCubeIndex[24] = 17;
-	myCubeIndex[25] = 16;
-	myCubeIndex[26] = 18;
-	myCubeIndex[27] = 18;
-	myCubeIndex[28] = 16;
-	myCubeIndex[29] = 19;
-	//6
-	myCubeIndex[30] = 20;
-	myCubeIndex[31] = 21;
-	myCubeIndex[32] = 22;
-	myCubeIndex[33] = 22;
-	myCubeIndex[34] = 23;
-	myCubeIndex[35] = 20;
-
-	ZeroMemory(&Ibd, sizeof(Ibd));
-	Ibd.Usage = D3D11_USAGE_DEFAULT;
-	Ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	Ibd.CPUAccessFlags = NULL;
-	Ibd.ByteWidth = sizeof(unsigned short) * 36;
-	Ibd.MiscFlags = 0; //unused
-	Ibd.StructureByteStride = sizeof(unsigned short);
-
-	ZeroMemory(&indexInitData, sizeof(indexInitData));
-	indexInitData.pSysMem = &myCubeIndex;
-	indexInitData.SysMemPitch = 0;
-	indexInitData.SysMemSlicePitch = 0;
-
-	hr = device->CreateBuffer(&Ibd, &indexInitData, &cubeIndexbuffer);
 
 	hr = device->CreateSamplerState(&sampd, &samplerState);
 
@@ -1154,15 +1007,14 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(sphereIndex, 0, 0);
 
 		//magic box
-		inmediateContext->GSSetShader(nullptr, nullptr, 0);
+		inmediateContext->GSSetShader(CubeGeometryShader, nullptr, 0);
 		inmediateContext->PSSetShader(noLPS, nullptr, 0);
-		inmediateContext->VSSetShader(multiTexturingVS, nullptr, 0);
+		inmediateContext->VSSetShader(CubeVertexShader, nullptr, 0);
 
 		inmediateContext->RSSetViewports(1, viewport);
 		inmediateContext->OMSetDepthStencilState(stencilState, 0);
 
-		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
-		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
+		inmediateContext->GSSetConstantBuffers(0, 1, &SceneconstantBuffer);
 
 		inmediateContext->PSSetSamplers(0, 1, &samplerState);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceViewMap);
@@ -1194,11 +1046,11 @@ bool DEMO_APP::Run()
 
 		inmediateContext->IASetInputLayout(vertexLayout);
 		inmediateContext->IASetVertexBuffers(0, 1, &cubeVertexbuffer, &stride, &offset);
-		inmediateContext->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+		//inmediateContext->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
 
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
-		inmediateContext->DrawIndexed(36, 0, 0);
+		inmediateContext->Draw(1, 0);
 
 		//trees
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
@@ -1254,6 +1106,12 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
 		
 		//leaves
+		/*float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+		inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
+		//for opaque 
+		inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
+		*/
+
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
@@ -1453,16 +1311,14 @@ bool DEMO_APP::Run()
 	WtoShader[1].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
 
 	//magic box
-	WtoShader[7].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
-	//inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
 
-	inmediateContext->PSSetShader(pixelShader, nullptr, 0);
-	inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
+	inmediateContext->GSSetShader(CubeGeometryShader, nullptr, 0);
+	inmediateContext->PSSetShader(noLPS, nullptr, 0);
+	inmediateContext->VSSetShader(CubeVertexShader, nullptr, 0);
 
 	inmediateContext->OMSetDepthStencilState(stencilState, 0);
 
-	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
-	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
+	inmediateContext->GSSetConstantBuffers(0, 1, &SceneconstantBuffer);
 	//light
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
@@ -1503,12 +1359,11 @@ bool DEMO_APP::Run()
 
 	inmediateContext->IASetInputLayout(vertexLayout);
 	inmediateContext->IASetVertexBuffers(0, 1, &cubeVertexbuffer, &stride, &offset);
-	inmediateContext->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+	//inmediateContext->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
 
-	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
-	inmediateContext->DrawIndexed(36, 0, 0);
-	WtoShader[7].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+	inmediateContext->Draw(1, 0);
 
 	//trees
 	WtoShader[2].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
@@ -1782,8 +1637,11 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(cubeVertexbuffer);
 	SAFE_DELETE(cubeVertexbuffer);
 
-	SAFE_RELEASE(cubeIndexbuffer);
-	SAFE_DELETE(cubeIndexbuffer);
+	SAFE_RELEASE(CubeVertexShader);
+	SAFE_DELETE(CubeVertexShader);
+
+	SAFE_RELEASE(CubeGeometryShader);
+	SAFE_DELETE(CubeGeometryShader);
 	
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
