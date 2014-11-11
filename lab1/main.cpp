@@ -104,10 +104,10 @@ class DEMO_APP
 	ID3D11Buffer*					GroundIndexbuffer;
 	ID3D11Buffer*					ObjectVertexbuffer[6];
 	ID3D11Buffer*					ObjectIndexbuffer[6];
-	ID3D11ShaderResourceView*		shaderResourceView[9];
+	ID3D11ShaderResourceView*		shaderResourceView[10];
 	ID3D11SamplerState*				CubesTexSamplerState;
-	ID3D11DeviceContext*			deferredcontext;
-	ID3D11CommandList*				commandList;
+	ID3D11DeviceContext*			deferredcontext[2];
+	ID3D11CommandList*				commandList[2];
 
 	ID3D11BlendState*				Blending;
 
@@ -203,7 +203,7 @@ class DEMO_APP
 		XMFLOAT3 padel;
 	};
 
-	SEND_TO_WORLD					WtoShader[8];
+	SEND_TO_WORLD					WtoShader[9];
 	SEND_TOINSTANCE					instanceToShader;
 	SEND_TO_WORLD					skytoShader;
 	SEND_TO_SCENE					StoShader[4];
@@ -222,6 +222,9 @@ public:
 	friend void FolliageLoadingThread(DEMO_APP* myApp);
 	friend void LeavesLoadingThread(DEMO_APP* myApp);
 	friend void ObjectLoadingThread(DEMO_APP* myApp);
+
+	friend void RRTDraw(DEMO_APP* myApp);
+	friend void MinimapDraw(DEMO_APP* myApp);
 
 	struct SimpleVertex
 	{
@@ -264,7 +267,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(L"DirectXApplication", L"Lab 1a Line Land", WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
+	window = CreateWindow(L"DirectXApplication", L"Nightmare", WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
 		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
 		NULL, NULL, application, this);
 
@@ -283,10 +286,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sd.BufferDesc.RefreshRate.Denominator = 1;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	sd.OutputWindow = window;
-	sd.Windowed = false;
+	//sd.Windowed = false;
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
 	sd.Windowed = TRUE;
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_DEBUG,
 		nullptr, 0, D3D11_SDK_VERSION, &sd, &swapchain, &device, nullptr, &inmediateContext);
@@ -297,7 +301,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	backBuffer->Release();
 
 	std::thread myLoadingThread = std::thread(LoadingThread, this); //textures
-	//std::thread myStatLoadingThread = std::thread(StatuesLoadingThread, this);
+	std::thread myStatLoadingThread = std::thread(StatuesLoadingThread, this);
 	std::thread myFollLoadingThread = std::thread(FolliageLoadingThread, this);
 	std::thread myLeavLoadingThread = std::thread(LeavesLoadingThread, this);
 	std::thread myObject = std::thread(ObjectLoadingThread, this);
@@ -459,7 +463,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//Ground
 	std::vector<SimpleVertex> myground;
 
-	XMFLOAT3 initial = XMFLOAT3(-150.0f, 0.0f, 150.0f);
+	XMFLOAT3 initial = XMFLOAT3(-150.0f, -2.0f, 150.0f);
 
 	for (int rows = 0; rows < 301; rows++)
 	{
@@ -633,16 +637,25 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
 
-	rtbd.BlendEnable = true;
+	/*rtbd.BlendEnable = true;
 	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
 	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
 	rtbd.SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
 	rtbd.DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
 	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;*/
+
+	rtbd.BlendEnable = true;
+	rtbd.SrcBlend = D3D11_BLEND_SRC_COLOR;
+	rtbd.DestBlend = D3D11_BLEND_BLEND_FACTOR;
+	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
+	rtbd.SrcBlendAlpha = D3D11_BLEND_ONE;
+	rtbd.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
 
-	blendDesc.AlphaToCoverageEnable = true;
+	blendDesc.AlphaToCoverageEnable = false;
 	blendDesc.RenderTarget[0] = rtbd;
 
 	device->CreateBlendState(&blendDesc, &Blending);
@@ -683,7 +696,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	hr = device->CreateSamplerState(&sampd, &samplerState);
 
-	hr = device->CreateDeferredContext(0, &deferredcontext);
+	for (int i = 0; i < 2; i++)
+		hr = device->CreateDeferredContext(0, &deferredcontext[i]);
 
 	StoShader[0].ViewM = XMMatrixIdentity();
 	StoShader[0].ProjectM = XMMatrixPerspectiveFovLH(1.30899694f, BACKBUFFER_WIDTH / BACKBUFFER_HEIGHT, 0.1f, 300.0f);
@@ -729,7 +743,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	skytoShader.World = XMMatrixIdentity();
 	skytoShader.World *= XMMatrixScaling(100.0f, 100.0f, 100.0f);
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < 9; i++)
 		WtoShader[i].World = XMMatrixIdentity();
 
 	//WtoShader[1].World = XMMatrixTranslation(15.0f, 0.0f, 15.0f);
@@ -740,6 +754,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 
 	WtoShader[7].World *= XMMatrixScaling(5.0f, 5.0f, 5.0f) * XMMatrixTranslation(125.0f, 8.0f, 125.0f);
+
+	WtoShader[8].World *= XMMatrixScaling(5.0f, 5.0f, 5.0f) * XMMatrixTranslation(-140.0f, 0.0f, -125.0f);
 
 	directionalLight[0].pos = XMFLOAT3(-150.0f, 150.0f, -150.0f);
 	directionalLight[0].dir = XMFLOAT3(2.0f, -1.0f, 2.0f);
@@ -792,6 +808,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	WAIT_FOR_THREAD(&myLoadingThread);
 	WAIT_FOR_THREAD(&myLeavLoadingThread);
 	WAIT_FOR_THREAD(&myFollLoadingThread);
+	WAIT_FOR_THREAD(&myStatLoadingThread);
 	WAIT_FOR_THREAD(&myObject);
 
 	
@@ -853,378 +870,47 @@ bool DEMO_APP::Run()
 
 	 XMStoreFloat4(&speculatToShader.camPos, CamviewAux.r[3]);
 
-	if (shaderResourceView[0] && shaderResourceView[1])
-	{
-		//RTTDraw
-		XMMATRIX translation = XMMatrixIdentity();
-		translation = XMMatrixTranslation(0.0f, 0.0f, 10.0f);
-
-		XMMATRIX scaling = XMMatrixIdentity();
-		scaling = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-
-		XMMATRIX rotateY = XMMatrixIdentity();
-		XMMATRIX rotateZ = XMMatrixIdentity();
-		XMMATRIX rotateX = XMMatrixIdentity();
-
-		XMFLOAT3 rot = XMFLOAT3(0.0f, 1.0f, 0.0f);
-		XMVECTOR aux = XMLoadFloat3(&rot);
-		rotateY *= XMMatrixRotationAxis(aux, dt);
-
-		rot = XMFLOAT3(0.0f, 0.0f, 1.0f);
-		aux = XMLoadFloat3(&rot);
-		rotateZ *= XMMatrixRotationAxis(aux, -dt);
-
-		rot = XMFLOAT3(1.0f, 0.0f, 0.0f);
-		aux = XMLoadFloat3(&rot);
-		rotateX *= XMMatrixRotationAxis(aux, 0.7f * dt);
-
-		rotationRTT *= rotateX * rotateY *rotateZ;
-
-		WtoShader[6].World = scaling * rotationRTT * translation;
-
-		inmediateContext->OMSetRenderTargets(1, &RTTrenderTargetView, RTTstencilView);
-		inmediateContext->ClearRenderTargetView(RTTrenderTargetView, Colors::CornflowerBlue);
-		inmediateContext->ClearDepthStencilView(RTTstencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
-
-		inmediateContext->RSSetViewports(1, RTTviewport);
-		inmediateContext->OMSetDepthStencilState(stencilState, 1);
-
-		inmediateContext->PSSetShader(multiTexturingPS, nullptr, 0);
-		inmediateContext->VSSetShader(multiTexturingVS, nullptr, 0);
-
-		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
-		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
-		//light
-		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(3, 1, &SpecularConstantBuffer);
-
-		inmediateContext->PSSetSamplers(0, 1, &samplerState);
-
-		D3D11_MAPPED_SUBRESOURCE  Resource;
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[6], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[3], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &directionalLight[1], sizeof(SEND_DIRECTIONAL_LIGHT));
-		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &PointLightToS[1], sizeof(SEND_POINT_LIGHT));
-		inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &speculatToShader, sizeof(SEND_TO_SPECULO));
-		inmediateContext->Unmap(SpecularConstantBuffer, 0);
-
-		UINT sstride = sizeof(SimpleVertex);
-		UINT soffset = 0;
-
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[7]);
-		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[8]);
-
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[2], &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[2], DXGI_FORMAT_R32_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->DrawIndexed(indexCount[2], 0, 0);
-		inmediateContext->GenerateMips(shaderResourceViewMap);
-
-		//skybox
-		inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
-		inmediateContext->OMSetDepthStencilState(stencilState, 1);
-		inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-		inmediateContext->RSSetViewports(1, viewport);
-
-		inmediateContext->ClearRenderTargetView(renderTargetView, Colors::MidnightBlue);
-		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
-		inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
-
-		inmediateContext->OMSetDepthStencilState(stencilState, 0);
-		inmediateContext->PSSetSamplers(0, 1, &samplerState);
-
-		inmediateContext->RSSetState(SkyrasterState);
-
-		skytoShader.World = XMMatrixIdentity();
-		XMMATRIX Scale = XMMatrixScaling(100.0f, 100.0f, 100.0f);
-		XMMATRIX Translation = XMMatrixTranslation(XMVectorGetX(StoShader[0].ViewM.r[0]), XMVectorGetY(StoShader[0].ViewM.r[1]), XMVectorGetZ(StoShader[0].ViewM.r[2]));
-		skytoShader.World = Scale * Translation;
-
-		//infinite skybox
-		XMMATRIX auxe = StoShader[0].ViewM;
-		auxe.r[3].m128_f32[0] = auxe.r[3].m128_f32[1] = auxe.r[3].m128_f32[2] = 0.0f;
-		StoShader[1].ViewM = auxe;
-
-		inmediateContext->PSSetConstantBuffers(0, 1, &cameraPositionBuffer);
-
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[1], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &skytoShader, sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-		
-		inmediateContext->PSSetShader(SkypixelShader, nullptr, 0);
-		inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &SkyVertexbuffer, &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(SkyIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-		inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[0]);
-
-		inmediateContext->DrawIndexed(sphereIndex, 0, 0);
-
-		//magic box
-		inmediateContext->GSSetShader(CubeGeometryShader, nullptr, 0);
-		inmediateContext->PSSetShader(noLPS, nullptr, 0);
-		inmediateContext->VSSetShader(CubeVertexShader, nullptr, 0);
-
-		inmediateContext->RSSetViewports(1, viewport);
-		inmediateContext->OMSetDepthStencilState(stencilState, 0);
-
-		inmediateContext->GSSetConstantBuffers(0, 1, &SceneconstantBuffer);
-
-		inmediateContext->PSSetSamplers(0, 1, &samplerState);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceViewMap);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[7], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-		inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_TOFOG));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		UINT stride = sizeof(SimpleVertex);
-		UINT offset = 0;
-
-		inmediateContext->RSSetState(rasterState);
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-		inmediateContext->IASetVertexBuffers(0, 1, &cubeVertexbuffer, &stride, &offset);
-		//inmediateContext->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
-
-		inmediateContext->Draw(1, 0);
-
-		//trees
-		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-
-		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-
-		inmediateContext->GSSetShader(nullptr, nullptr, 0);
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[2], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-		inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-		inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
-		inmediateContext->Unmap(instanceConstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
-		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[1], &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[1], DXGI_FORMAT_R32_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[3]);
-		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[5]);
-
-		inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
-		
-		//leaves
-		/*float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
-		inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
-		//for opaque 
-		inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
-		*/
-
-		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-
-		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-
-		inmediateContext->RSSetState(SkyrasterState);
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[3], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-		inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &instanceToShader, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(instanceConstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
-		inmediateContext->Unmap(instanceConstantBuffer, 0);
-
-		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
-		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[0], &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[0], DXGI_FORMAT_R32_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[4]);
-		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[6]);
-
-		inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
-
-		//ground
-		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-		inmediateContext->RSSetState(rasterState);
-
-		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-		inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-		inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
-		inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-		inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-		inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-		inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-		inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-		inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-		inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-		inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-		inmediateContext->GSSetShader(geometryshader, nullptr, 0);
-		inmediateContext->PSSetShader(pixelShader, nullptr, 0);
-		inmediateContext->VSSetShader(vertexShader, nullptr, 0);
-		sstride = sizeof(SimpleVertex);
-		soffset = 0;
-
-		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
-
-		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
-		inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
-		inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
-
-		inmediateContext->DrawIndexed(groundIndex, 0, 0);
-	}
-
-	//viewport2
-	SpotLightToS.padding = 0.0f;
 	inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
+	inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-	inmediateContext->RSSetViewports(1, differentViewport);
-
+	inmediateContext->ClearRenderTargetView(renderTargetView, Colors::MidnightBlue);
 	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
 	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
-	inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
+	//minimap
+	std::thread myMinimap = std::thread(MinimapDraw, this);
+	//Render To Texture
+	std::thread rttThread = std::thread(RRTDraw, this);
 
+	WAIT_FOR_THREAD(&rttThread);
+	if (commandList[1])
+		inmediateContext->ExecuteCommandList(commandList[1], true);
+	SAFE_RELEASE(commandList[1]);
+
+	SpotLightToS.padding = 1.0f;
+	//skybox
+	inmediateContext->OMSetRenderTargets(1, &renderTargetView, stencilView);
 	inmediateContext->OMSetDepthStencilState(stencilState, 0);
+	inmediateContext->ClearDepthStencilView(stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+	inmediateContext->RSSetViewports(1, viewport);
+
+	inmediateContext->ClearRenderTargetView(renderTargetView, Colors::MidnightBlue);
+	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
+	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
 	inmediateContext->PSSetSamplers(0, 1, &samplerState);
 
 	inmediateContext->RSSetState(SkyrasterState);
+
+	skytoShader.World = XMMatrixIdentity();
+	XMMATRIX Scale = XMMatrixScaling(100.0f, 100.0f, 100.0f);
+	XMMATRIX Translation = XMMatrixTranslation(XMVectorGetX(StoShader[0].ViewM.r[0]), XMVectorGetY(StoShader[0].ViewM.r[1]), XMVectorGetZ(StoShader[0].ViewM.r[2]));
+	skytoShader.World = Scale * Translation;
+
+	//infinite skybox
+	XMMATRIX auxe = StoShader[0].ViewM;
+	auxe.r[3].m128_f32[0] = auxe.r[3].m128_f32[1] = auxe.r[3].m128_f32[2] = 0.0f;
+	StoShader[1].ViewM = auxe;
 
 	inmediateContext->PSSetConstantBuffers(0, 1, &cameraPositionBuffer);
 
@@ -1242,8 +928,13 @@ bool DEMO_APP::Run()
 	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 	inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+	inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
 	inmediateContext->PSSetShader(SkypixelShader, nullptr, 0);
 	inmediateContext->VSSetShader(SkyvertexShader, nullptr, 0);
+
 	UINT sstride = sizeof(SimpleVertex);
 	UINT soffset = 0;
 
@@ -1258,72 +949,16 @@ bool DEMO_APP::Run()
 
 	inmediateContext->DrawIndexed(sphereIndex, 0, 0);
 
-	//ground
-	WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
-	//ligths
-	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-	inmediateContext->RSSetState(rasterState);
-
-	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &StoShader[2], sizeof(SEND_TO_SCENE));
-	inmediateContext->Unmap(SceneconstantBuffer, 0);
-
-	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
-	inmediateContext->Unmap(WorldconstantBuffer, 0);
-
-	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-	inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
-
-	inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-	inmediateContext->Unmap(PointLightconstantBuffer, 0);
-
-	inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
-
-	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &myView, sizeof(SEND_TOFOG));
-	inmediateContext->Unmap(cameraPositionBuffer, 0);
-
-	inmediateContext->GSSetShader(geometryshader, nullptr, 0);
-	inmediateContext->PSSetShader(pixelShader, nullptr, 0);
-	inmediateContext->VSSetShader(vertexShader, nullptr, 0);
-	sstride = sizeof(SimpleVertex);
-	soffset = 0;
-
-	inmediateContext->IASetInputLayout(vertexLayout);
-
-	inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
-	inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
-
-	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
-	inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
-	inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
-
-	inmediateContext->DrawIndexed(groundIndex, 0, 0);
-	WtoShader[1].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
-
 	//magic box
 
 	inmediateContext->GSSetShader(CubeGeometryShader, nullptr, 0);
 	inmediateContext->PSSetShader(noLPS, nullptr, 0);
 	inmediateContext->VSSetShader(CubeVertexShader, nullptr, 0);
 
-	inmediateContext->OMSetDepthStencilState(stencilState, 0);
+	inmediateContext->RSSetViewports(1, viewport);
+	inmediateContext->OMSetDepthStencilState(stencilState, 1);
 
 	inmediateContext->GSSetConstantBuffers(0, 1, &SceneconstantBuffer);
-	//light
-	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
 
 	inmediateContext->PSSetSamplers(0, 1, &samplerState);
 	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceViewMap);
@@ -1344,10 +979,6 @@ bool DEMO_APP::Run()
 	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
 	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
 
-	inmediateContext->Map(SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &speculatToShader, sizeof(SEND_TO_SPECULO));
-	inmediateContext->Unmap(SpecularConstantBuffer, 0);
-
 	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 	memcpy(Resource.pData, &myView, sizeof(SEND_TOFOG));
 	inmediateContext->Unmap(cameraPositionBuffer, 0);
@@ -1366,7 +997,8 @@ bool DEMO_APP::Run()
 	inmediateContext->Draw(1, 0);
 
 	//trees
-	WtoShader[2].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
+
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1374,7 +1006,7 @@ bool DEMO_APP::Run()
 
 	inmediateContext->GSSetShader(nullptr, nullptr, 0);
 	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &StoShader[2], sizeof(SEND_TO_SCENE));
+	memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
 	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1397,10 +1029,12 @@ bool DEMO_APP::Run()
 	memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
 	inmediateContext->Unmap(instanceConstantBuffer, 0);
 
+	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(cameraPositionBuffer, 0);
+
 	inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 	inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
-	sstride = sizeof(SimpleVertex);
-	soffset = 0;
 
 	inmediateContext->IASetInputLayout(vertexLayout);
 
@@ -1412,9 +1046,12 @@ bool DEMO_APP::Run()
 	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[5]);
 
 	inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
-
+	
 	//leaves
-	WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
+
+	inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
+
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1422,7 +1059,7 @@ bool DEMO_APP::Run()
 
 	inmediateContext->RSSetState(SkyrasterState);
 	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &StoShader[2], sizeof(SEND_TO_SCENE));
+	memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
 	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1436,6 +1073,10 @@ bool DEMO_APP::Run()
 	inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 	memcpy(Resource.pData, &instanceToShader, sizeof(SEND_SPOT_LIGHT));
 	inmediateContext->Unmap(instanceConstantBuffer, 0);
+
+	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(cameraPositionBuffer, 0);
 
 	inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 	memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
@@ -1457,12 +1098,165 @@ bool DEMO_APP::Run()
 
 	inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
 
-	WtoShader[2].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
-	WtoShader[3].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
-	/*WAIT_FOR_THREAD(&myDrawingThread);
-	if (commandList)
-	inmediateContext->ExecuteCommandList(commandList, true);
-	SAFE_RELEASE(commandList);*/
+	//ground
+	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+	inmediateContext->RSSetState(rasterState);
+
+	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+	inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
+	inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
+	inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+	inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
+	inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+	inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
+	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(cameraPositionBuffer, 0);
+
+	inmediateContext->GSSetShader(geometryshader, nullptr, 0);
+	inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+	inmediateContext->VSSetShader(vertexShader, nullptr, 0);
+	sstride = sizeof(SimpleVertex);
+	soffset = 0;
+
+	inmediateContext->IASetInputLayout(vertexLayout);
+
+	inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
+	inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+	inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
+	inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
+
+	inmediateContext->DrawIndexed(groundIndex, 0, 0);
+
+	//stuff
+	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+
+	inmediateContext->GSSetShader(nullptr, nullptr, 0);
+	inmediateContext->PSSetShader(noLPS, nullptr, 0);
+	inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
+
+	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+	inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &WtoShader[8], sizeof(SEND_TO_WORLD));
+	inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
+	inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+	inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
+	inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+	inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
+	inmediateContext->Map(instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
+	inmediateContext->Unmap(instanceConstantBuffer, 0);
+
+	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(cameraPositionBuffer, 0);
+
+	sstride = sizeof(SimpleVertex);
+	soffset = 0;
+
+	inmediateContext->IASetInputLayout(vertexLayout);
+
+	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[3], &sstride, &soffset);
+	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
+
+	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[8]);
+	//inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[5]);
+
+	inmediateContext->DrawIndexed(indexCount[3], 0, 0);
+
+	//water
+	//float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+	//inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
+	//		
+	//inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+	//inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+	//inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+	//inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+	//inmediateContext->RSSetState(rasterState);
+
+	//inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+	//inmediateContext->Unmap(SceneconstantBuffer, 0);
+
+	//inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
+	//inmediateContext->Unmap(WorldconstantBuffer, 0);
+
+	//inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
+	//inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+
+	//inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
+	//inmediateContext->Unmap(PointLightconstantBuffer, 0);
+
+	//inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+	//inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+
+	//inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	//inmediateContext->Unmap(cameraPositionBuffer, 0);
+
+	//inmediateContext->GSSetShader(geometryshader, nullptr, 0);
+	//inmediateContext->PSSetShader(pixelShader, nullptr, 0);
+	//inmediateContext->VSSetShader(multiTexturingVS, nullptr, 0);
+	//sstride = sizeof(SimpleVertex);
+	//soffset = 0;
+
+	//inmediateContext->IASetInputLayout(vertexLayout);
+
+	//inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
+	//inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	//inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[9]);
+	//inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	//
+	//inmediateContext->DrawIndexed(groundIndex, 0, 0);
+
+	////for opaque
+	//inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
+
+	WAIT_FOR_THREAD(&myMinimap);
+	if (commandList[0])
+		inmediateContext->ExecuteCommandList(commandList[0], true);
+	SAFE_RELEASE(commandList[0]);
 
 	swapchain->Present(0, 0);
 
@@ -1529,7 +1323,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(noLPS);
 	SAFE_DELETE(noLPS);
 
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < 10; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -1547,7 +1341,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(vertexLayout);
 	SAFE_DELETE(vertexLayout);
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 4; i++)
 	{
 		SAFE_RELEASE(ObjectVertexbuffer[i]);
 		SAFE_DELETE(ObjectVertexbuffer[i]);
@@ -1574,8 +1368,14 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(CubesTexSamplerState);
 	SAFE_DELETE(CubesTexSamplerState);
 
-	SAFE_RELEASE(deferredcontext);
-	SAFE_DELETE(deferredcontext);
+	for (int i = 0; i < 2; i++)
+	{
+		SAFE_RELEASE(deferredcontext[i]);
+		SAFE_DELETE(deferredcontext[i]);
+
+		SAFE_RELEASE(commandList[i]);
+		SAFE_DELETE(commandList[i]);
+	}
 
 	SAFE_RELEASE(SkyrasterState);
 	SAFE_DELETE(SkyrasterState);
@@ -2470,12 +2270,14 @@ void LoadingThread(DEMO_APP* myApp)
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_leaves_normal.dds", nullptr, &myApp->shaderResourceView[6]);
 	//RTT
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/fungus.dds", nullptr, &myApp->shaderResourceView[7]);
-	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[8]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/clown.dds", nullptr, &myApp->shaderResourceView[8]);
+	//water
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/watar.dds", nullptr, &myApp->shaderResourceView[9]);
 }
 
 void StatuesLoadingThread(DEMO_APP* myApp)
 {
-	myApp->LoadObjectFromFile("Assets//Models//monkstatue.obj", 3);
+	myApp->LoadObjectFromFile("Assets//Models//Bloat_Halloween.obj", 3);
 }
 
 void ObjectLoadingThread(DEMO_APP* myApp)
@@ -2493,47 +2295,347 @@ void LeavesLoadingThread(DEMO_APP* myApp)
 	myApp->LoadObjectFromFile("Assets//Models//leaves.obj", 0);
 }
 
-void DrawingThread(DEMO_APP* myApp)
+void RRTDraw(DEMO_APP* myApp)	
 {
-	if (myApp->shaderResourceView[0] && myApp->shaderResourceView[1])
-	{
-		myApp->deferredcontext->OMSetRenderTargets(1, &myApp->renderTargetView, myApp->stencilView);
-		myApp->deferredcontext->OMSetDepthStencilState(myApp->stencilState, 1);
-		myApp->deferredcontext->RSSetViewports(1, myApp->viewport);
-		myApp->deferredcontext->ClearRenderTargetView(myApp->renderTargetView, Colors::MidnightBlue);
-		myApp->deferredcontext->ClearDepthStencilView(myApp->stencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
+	//RTTDraw
+	XMMATRIX translation = XMMatrixIdentity();
+	translation = XMMatrixTranslation(0.0f, 0.0f, 10.0f);
 
-		myApp->deferredcontext->VSSetConstantBuffers(0, 1, &myApp->WorldconstantBuffer);
-		myApp->deferredcontext->VSSetConstantBuffers(1, 1, &myApp->SceneconstantBuffer);
+	XMMATRIX scaling = XMMatrixIdentity();
+	scaling = XMMatrixScaling(0.2f, 0.2f, 0.2f);
 
+	XMMATRIX rotateY = XMMatrixIdentity();
+	XMMATRIX rotateZ = XMMatrixIdentity();
+	XMMATRIX rotateX = XMMatrixIdentity();
 
-		D3D11_MAPPED_SUBRESOURCE  Resource;
+	XMFLOAT3 rot = XMFLOAT3(0.0f, 1.0f, 0.0f);
+	XMVECTOR aux = XMLoadFloat3(&rot);
+	rotateY *= XMMatrixRotationAxis(aux, myApp->dt);
 
-		myApp->deferredcontext->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->WtoShader[0], sizeof(DEMO_APP::SEND_TO_WORLD));
-		myApp->deferredcontext->Unmap(myApp->WorldconstantBuffer, 0);
+	rot = XMFLOAT3(0.0f, 0.0f, 1.0f);
+	aux = XMLoadFloat3(&rot);
+	rotateZ *= XMMatrixRotationAxis(aux, -myApp->dt);
 
-		myApp->deferredcontext->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
-		myApp->deferredcontext->Unmap(myApp->SceneconstantBuffer, 0);
+	rot = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	aux = XMLoadFloat3(&rot);
+	rotateX *= XMMatrixRotationAxis(aux, 0.7f * myApp->dt);
 
-		UINT sstride = sizeof(DEMO_APP::SimpleVertex);
-		UINT soffset = 0;
-		myApp->deferredcontext->IASetVertexBuffers(0, 1, &myApp->SkyVertexbuffer, &sstride, &soffset);
-		myApp->deferredcontext->IASetIndexBuffer(myApp->SkyIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+	myApp->rotationRTT *= rotateX * rotateY *rotateZ;
 
-		myApp->deferredcontext->IASetInputLayout(myApp->vertexLayout);
-		myApp->deferredcontext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	myApp->WtoShader[6].World = scaling * myApp->rotationRTT * translation;
 
-		myApp->deferredcontext->PSSetShader(myApp->pixelShader, nullptr, 0);
-		myApp->deferredcontext->VSSetShader(myApp->vertexShader, nullptr, 0);
+	myApp->deferredcontext[1]->OMSetRenderTargets(1, &myApp->RTTrenderTargetView, myApp->RTTstencilView);
+	myApp->deferredcontext[1]->ClearRenderTargetView(myApp->RTTrenderTargetView, Colors::CornflowerBlue);
+	myApp->deferredcontext[1]->ClearDepthStencilView(myApp->RTTstencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 
-		myApp->deferredcontext->PSSetSamplers(0, 1, &myApp->samplerState);
-		myApp->deferredcontext->PSSetShaderResources(0, 1, &myApp->shaderResourceView[0]);
+	myApp->deferredcontext[1]->RSSetViewports(1, myApp->RTTviewport);
+	//myApp->deferredcontext[1]->OMSetDepthStencilState(myApp->stencilState, 1);
 
-		myApp->deferredcontext->DrawIndexed(36, 0, 0);
+	myApp->deferredcontext[1]->PSSetShader(myApp->multiTexturingPS, nullptr, 0);
+	myApp->deferredcontext[1]->VSSetShader(myApp->multiTexturingVS, nullptr, 0);
 
-		myApp->deferredcontext->FinishCommandList(true, &myApp->commandList);
+	myApp->deferredcontext[1]->VSSetConstantBuffers(0, 1, &myApp->WorldconstantBuffer);
+	myApp->deferredcontext[1]->VSSetConstantBuffers(1, 1, &myApp->SceneconstantBuffer);
+	//light
+	myApp->deferredcontext[1]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	myApp->deferredcontext[1]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	myApp->deferredcontext[1]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	myApp->deferredcontext[1]->PSSetConstantBuffers(3, 1, &myApp->SpecularConstantBuffer);
 
-	}
+	myApp->deferredcontext[1]->PSSetSamplers(0, 1, &myApp->samplerState);
+
+	D3D11_MAPPED_SUBRESOURCE  Resource;
+
+	myApp->deferredcontext[1]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->WtoShader[6], sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[1]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[1]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[3], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[1]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[1]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->directionalLight[1], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+	myApp->deferredcontext[1]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+
+	myApp->deferredcontext[1]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->PointLightToS[1], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+	myApp->deferredcontext[1]->Unmap(myApp->PointLightconstantBuffer, 0);
+
+	myApp->deferredcontext[1]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[1]->Unmap(myApp->SpotLightconstantBuffer, 0);
+
+	myApp->deferredcontext[1]->Map(myApp->SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->speculatToShader, sizeof(DEMO_APP::SEND_TO_SPECULO));
+	myApp->deferredcontext[1]->Unmap(myApp->SpecularConstantBuffer, 0);
+
+	UINT sstride = sizeof(DEMO_APP::SimpleVertex);
+	UINT soffset = 0;
+
+	myApp->deferredcontext[1]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[7]);
+	myApp->deferredcontext[1]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[8]);
+
+	myApp->deferredcontext[1]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[2], &sstride, &soffset);
+	myApp->deferredcontext[1]->IASetIndexBuffer(myApp->ObjectIndexbuffer[2], DXGI_FORMAT_R32_UINT, 0);
+
+	myApp->deferredcontext[1]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	myApp->deferredcontext[1]->IASetInputLayout(myApp->vertexLayout);
+
+	myApp->deferredcontext[1]->DrawIndexed(myApp->indexCount[2], 0, 0);
+	myApp->deferredcontext[1]->GenerateMips(myApp->shaderResourceViewMap);
+
+	myApp->deferredcontext[1]->FinishCommandList(true, &myApp->commandList[1]);
+} //working
+
+void MinimapDraw(DEMO_APP* myApp)
+{
+	//viewport2
+	myApp->SpotLightToS.padding = 0.0f;
+	myApp->deferredcontext[0]->OMSetRenderTargets(1, &myApp->renderTargetView, myApp->stencilView);
+
+	myApp->deferredcontext[0]->RSSetViewports(1, myApp->differentViewport);
+
+	myApp->deferredcontext[0]->VSSetConstantBuffers(0, 1, &myApp->WorldconstantBuffer);
+	myApp->deferredcontext[0]->VSSetConstantBuffers(1, 1, &myApp->SceneconstantBuffer);
+	myApp->deferredcontext[0]->VSSetConstantBuffers(2, 1, &myApp->instanceConstantBuffer);
+
+	/*myApp->deferredcontext[0]->OMSetDepthStencilState(myApp->stencilState, 0);*/
+	myApp->deferredcontext[0]->PSSetSamplers(0, 1, &myApp->samplerState);
+
+	//NOSKYBOX
+	/*myApp->deferredcontext[0]->RSSetState(myApp->SkyrasterState);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->cameraPositionBuffer);
+	D3D11_MAPPED_SUBRESOURCE  Resource;
+
+	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[1], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->skytoShader, sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+
+	myApp->deferredcontext[0]->PSSetShader(myApp->SkypixelShader, nullptr, 0);
+	myApp->deferredcontext[0]->VSSetShader(myApp->SkyvertexShader, nullptr, 0);
+	UINT sstride = sizeof(DEMO_APP::SimpleVertex);
+	UINTsoffset = 0;
+
+	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+
+	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->SkyVertexbuffer, &sstride, &soffset);
+	myApp->deferredcontext[0]->IASetIndexBuffer(myApp->SkyIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	myApp->deferredcontext[0]->PSSetSamplers(0, 1, &myApp->CubesTexSamplerState);
+	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[0]);
+
+	myApp->deferredcontext[0]->DrawIndexed(myApp->sphereIndex, 0, 0);*/
+
+	D3D11_MAPPED_SUBRESOURCE  Resource;
+	UINT sstride = sizeof(DEMO_APP::SimpleVertex);
+	UINT soffset = 0;
+
+	//ground
+	myApp->WtoShader[1].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	//ligths
+	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+	myApp->deferredcontext[0]->RSSetState(myApp->rasterState);
+
+	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[2], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->WtoShader[1], sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_TOFOG));
+	myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+
+	myApp->deferredcontext[0]->GSSetShader(myApp->geometryshader, nullptr, 0);
+	myApp->deferredcontext[0]->PSSetShader(myApp->pixelShader, nullptr, 0);
+	myApp->deferredcontext[0]->VSSetShader(myApp->vertexShader, nullptr, 0);
+
+	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+
+	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->GroundVertexbuffer, &sstride, &soffset);
+	myApp->deferredcontext[0]->IASetIndexBuffer(myApp->GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[1]);
+	myApp->deferredcontext[0]->VSSetSamplers(0, 1, &myApp->CubesTexSamplerState);
+	myApp->deferredcontext[0]->VSSetShaderResources(0, 1, &myApp->shaderResourceView[2]);
+
+	myApp->deferredcontext[0]->DrawIndexed(myApp->groundIndex, 0, 0);
+	myApp->WtoShader[1].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+
+	//magic box
+
+	myApp->deferredcontext[0]->GSSetShader(myApp->CubeGeometryShader, nullptr, 0);
+	myApp->deferredcontext[0]->PSSetShader(myApp->noLPS, nullptr, 0);
+	myApp->deferredcontext[0]->VSSetShader(myApp->CubeVertexShader, nullptr, 0);
+
+	//myApp->deferredcontext[0]->OMSetDepthStencilState(myApp->stencilState, 1);
+
+	myApp->deferredcontext[0]->GSSetConstantBuffers(0, 1, &myApp->SceneconstantBuffer);
+	//light
+	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+
+	myApp->deferredcontext[0]->PSSetSamplers(0, 1, &myApp->samplerState);
+	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceViewMap);
+
+	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->WtoShader[7], sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->speculatToShader, sizeof(DEMO_APP::SEND_TO_SPECULO));
+	myApp->deferredcontext[0]->Unmap(myApp->SpecularConstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_TOFOG));
+	myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+
+	UINT stride = sizeof(DEMO_APP::SimpleVertex);
+	UINT offset = 0;
+
+	myApp->deferredcontext[0]->RSSetState(myApp->rasterState);
+
+	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->cubeVertexbuffer, &stride, &offset);
+	//myApp->deferredcontext[0]->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+
+	myApp->deferredcontext[0]->Draw(1, 0);
+
+	//trees
+	myApp->WtoShader[2].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+
+	myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
+	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[2], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->WtoShader[2], sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
+	myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+
+	myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+	myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
+
+	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+
+	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[1], &sstride, &soffset);
+	myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[1], DXGI_FORMAT_R32_UINT, 0);
+
+	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[3]);
+	myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[5]);
+
+	myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[1], 100, 0, 0, 0);
+
+	//leaves
+	myApp->WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+
+	myApp->deferredcontext[0]->RSSetState(myApp->SkyrasterState);
+	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->StoShader[2], sizeof(DEMO_APP::SEND_TO_SCENE));
+	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->WtoShader[3], sizeof(DEMO_APP::SEND_TO_WORLD));
+	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+
+	myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
+	myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+
+	myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+	myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
+
+	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+
+	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[0], &sstride, &soffset);
+	myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[0], DXGI_FORMAT_R32_UINT, 0);
+
+	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[4]);
+	myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[6]);
+
+	myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[0], 70, 0, 0, 0);
+
+	myApp->WtoShader[2].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+	myApp->WtoShader[3].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+
+	myApp->deferredcontext[0]->FinishCommandList(true, &myApp->commandList[0]);
 }

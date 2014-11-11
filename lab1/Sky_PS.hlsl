@@ -32,17 +32,16 @@ float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 	//{
 	//fog 
 
-	if (pad == 1.0f && length(viewPos) < 80) //&& length(viewPos.z) < 30))
+	if (pad == 1.0f) // && length(viewPos) < 200) //&& length(viewPos.z) < 30))
 		{
-			float  fogStart = 15.0f;
-			float  fogRange = 15.0f;
-			float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 1.0f);
+		float  fogStart = 0.0f;
+			float  fogRange = 100.0f;
+			float4 fogColor = float4 (0.5f, 0.5f, 0.5f, 0.5f);
 
-			float fogLerp = saturate((length(viewPos - unpos) - fogStart) / fogRange);
+				float fogLerp = 1.0f - saturate((length(float4(0, 0, 0, 1) - unpos) - fogStart) / fogRange);
 
 			baseColor = lerp(baseColor, fogColor, fogLerp);
 		}
-
 	return baseColor;
 
 }
