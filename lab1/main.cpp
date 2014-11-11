@@ -104,7 +104,7 @@ class DEMO_APP
 	ID3D11Buffer*					GroundIndexbuffer;
 	ID3D11Buffer*					ObjectVertexbuffer[6];
 	ID3D11Buffer*					ObjectIndexbuffer[6];
-	ID3D11ShaderResourceView*		shaderResourceView[10];
+	ID3D11ShaderResourceView*		shaderResourceView[11];
 	ID3D11SamplerState*				CubesTexSamplerState;
 	ID3D11DeviceContext*			deferredcontext[2];
 	ID3D11CommandList*				commandList[2];
@@ -1194,7 +1194,7 @@ bool DEMO_APP::Run()
 	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
 
 	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[8]);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[10]);
 	//inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[5]);
 
 	inmediateContext->DrawIndexed(indexCount[3], 0, 0);
@@ -1323,7 +1323,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(noLPS);
 	SAFE_DELETE(noLPS);
 
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 11; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -2270,9 +2270,11 @@ void LoadingThread(DEMO_APP* myApp)
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/conifer_leaves_normal.dds", nullptr, &myApp->shaderResourceView[6]);
 	//RTT
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/fungus.dds", nullptr, &myApp->shaderResourceView[7]);
-	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/clown.dds", nullptr, &myApp->shaderResourceView[8]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/StoneWall.dds", nullptr, &myApp->shaderResourceView[8]);
 	//water
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/watar.dds", nullptr, &myApp->shaderResourceView[9]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/clown.dds", nullptr, &myApp->shaderResourceView[10]);
+
 }
 
 void StatuesLoadingThread(DEMO_APP* myApp)
