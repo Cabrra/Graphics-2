@@ -759,7 +759,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	XMFLOAT3 wet = XMFLOAT3 (0.0f, 1.0f, 0.0f);
 	XMVECTOR myrote = XMLoadFloat3(&wet);
-	WtoShader[8].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f) * XMMatrixRotationAxis(myrote, 3.14159265f) * XMMatrixTranslation(0.0f, 59.0f, 15.0f);
+	WtoShader[8].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f) * XMMatrixRotationAxis(myrote, 1.570796325f) * XMMatrixTranslation(12.0f, 58.6f, 19.0f);
 
 	WtoShader[4].World *= XMMatrixScaling(0.15f, 0.15f, 0.15f);
 

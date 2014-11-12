@@ -54,7 +54,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 {
 
 	float4 baseColor;
-	float4 ambient = float4(0.1f, 0.1f, 0.1f, 0.5f);
+	float4 ambient = float4(0.2f, 0.2f, 0.2f, 1.0f);
 	baseColor = baseTexture.Sample(filters[0], baseUV);
 
 	//clip(baseColor.w < 0.85f ? -1 : 1);
