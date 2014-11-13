@@ -23,8 +23,8 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 	float luminanceThreshold = 0.1;
 	float colorAmplification = 4;
 
-	baseUV.x = 0.4*sin(elapsedTime.x*50.0);
-	baseUV.y = 0.4*cos(elapsedTime.x*50.0);
+	baseUV.x = 0.4f *sin(elapsedTime.x * 50.0f);
+	baseUV.y = 0.4f *cos(elapsedTime.x * 50.0f);
 	float3 n = noiseTex.Sample(filters[0], (baseUV*3.5) + baseUV).rgb;
 	float3 c = noiseTex.Sample(filters[0], baseUV + n.xy*0.005).rgb;
 
