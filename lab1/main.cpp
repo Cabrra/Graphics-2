@@ -110,9 +110,9 @@ class DEMO_APP
 	ID3D11Buffer*					SkyIndexbuffer;
 	ID3D11Buffer*					GroundVertexbuffer;
 	ID3D11Buffer*					GroundIndexbuffer;
-	ID3D11Buffer*					ObjectVertexbuffer[6];
-	ID3D11Buffer*					ObjectIndexbuffer[6];
-	ID3D11ShaderResourceView*		shaderResourceView[17];
+	ID3D11Buffer*					ObjectVertexbuffer[9];
+	ID3D11Buffer*					ObjectIndexbuffer[9];
+	ID3D11ShaderResourceView*		shaderResourceView[19];
 	ID3D11SamplerState*				CubesTexSamplerState;
 	ID3D11DeviceContext*			deferredcontext[2];
 	ID3D11CommandList*				commandList[2];
@@ -142,7 +142,7 @@ class DEMO_APP
 	ID3D11Buffer*					cubeVertexbuffer;
 	//object loader
 
-	int indexCount[6]; // one for each object type
+	int indexCount[9]; // one for each object type
 
 	XMVECTOR camPosition;
 	XMVECTOR camTarget;
@@ -218,7 +218,7 @@ class DEMO_APP
 		XMFLOAT3 padel;
 	};
 
-	SEND_TO_WORLD					WtoShader[10];
+	SEND_TO_WORLD					WtoShader[13];
 	SEND_TOINSTANCE					instanceToShader;
 	SEND_TO_WORLD					skytoShader;
 	SEND_TO_SCENE					StoShader[4];
@@ -787,7 +787,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	skytoShader.World = XMMatrixIdentity();
 	skytoShader.World *= XMMatrixScaling(100.0f, 100.0f, 100.0f);
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 13; i++)
 		WtoShader[i].World = XMMatrixIdentity();
 
 	//WtoShader[1].World = XMMatrixTranslation(15.0f, 0.0f, 15.0f);
@@ -805,6 +805,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	WtoShader[8].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f) * XMMatrixRotationAxis(myrote, 1.570796325f) * XMMatrixTranslation(12.0f, 58.6f, 19.0f);
 	//beast
 	WtoShader[9].World *= XMMatrixScaling(0.005f, 0.005f, 0.005f) * XMMatrixRotationAxis(myrote, 3.1415f) * XMMatrixTranslation(-11.5f, 57.7f, 19.0f);
+
+	//Assaulter
+
+	wet = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	myrote = XMLoadFloat3(&wet);
+	WtoShader[10].World *= XMMatrixScaling(0.02f, 0.02f, 0.02f) * XMMatrixRotationAxis(myrote, -0.5f) * XMMatrixTranslation(-2.0f, 30.0f, 8.5f);
 	//tower
 	WtoShader[4].World *= XMMatrixScaling(0.15f, 0.15f, 0.15f);
 
@@ -1224,23 +1230,6 @@ bool DEMO_APP::Run()
 	//stuff
 	//clown
 	inmediateContext->RSSetState(rasterState);
-	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
-	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
-
-	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-
-	inmediateContext->IASetInputLayout(vertexLayout);
-
-	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[3], &sstride, &soffset);
-	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
-
-	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[10]);
-	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[11]);
-
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1255,7 +1244,7 @@ bool DEMO_APP::Run()
 	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &WtoShader[4], sizeof(SEND_TO_WORLD));
+	memcpy(Resource.pData, &WtoShader[8], sizeof(SEND_TO_WORLD));
 	inmediateContext->Unmap(WorldconstantBuffer, 0);
 
 	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1283,14 +1272,14 @@ bool DEMO_APP::Run()
 
 	inmediateContext->IASetInputLayout(vertexLayout);
 
-	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[4], &sstride, &soffset);
-	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[4], DXGI_FORMAT_R32_UINT, 0);
+	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[3], &sstride, &soffset);
+	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
 
 	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[12]);
-	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[13]);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[10]);
+	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[11]);
 
-	inmediateContext->DrawIndexed(indexCount[4], 0, 0);
+	inmediateContext->DrawIndexed(indexCount[3], 0, 0);
 
 	//beast
 	inmediateContext->RSSetState(reverserasterState);
@@ -1344,8 +1333,12 @@ bool DEMO_APP::Run()
 
 	inmediateContext->DrawIndexed(indexCount[5], 0, 0);
 
-	//tower
+	//Assaulter
 	inmediateContext->RSSetState(rasterState);
+
+	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
+	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
+
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1360,7 +1353,7 @@ bool DEMO_APP::Run()
 	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
 	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	memcpy(Resource.pData, &WtoShader[8], sizeof(SEND_TO_WORLD));
+	memcpy(Resource.pData, &WtoShader[10], sizeof(SEND_TO_WORLD));
 	inmediateContext->Unmap(WorldconstantBuffer, 0);
 
 	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -1388,14 +1381,33 @@ bool DEMO_APP::Run()
 
 	inmediateContext->IASetInputLayout(vertexLayout);
 
+	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[6], &sstride, &soffset);
+	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[6], DXGI_FORMAT_R32_UINT, 0);
+
+	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[17]);
+	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[18]);
+
+	inmediateContext->DrawIndexed(indexCount[6], 0, 0);
+
+	//Tower
+	inmediateContext->RSSetState(rasterState);
+	inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
+	inmediateContext->VSSetConstantBuffers(1, 1, &SceneconstantBuffer);
+
+	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+
+	inmediateContext->IASetInputLayout(vertexLayout);
+
 	inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[3], &sstride, &soffset);
 	inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
 
 	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[10]);
 	inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[11]);
-
-	inmediateContext->DrawIndexed(indexCount[3], 0, 0);
 
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
@@ -1581,7 +1593,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(postNightPS);
 	SAFE_DELETE(postNightPS);
 	
-	for (int i = 0; i < 17; i++)
+	for (int i = 0; i < 19; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -1599,7 +1611,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(vertexLayout);
 	SAFE_DELETE(vertexLayout);
 
-	for (int i = 0; i < 6; i++)
+	for (int i = 0; i < 7; i++)
 	{
 		SAFE_RELEASE(ObjectVertexbuffer[i]);
 		SAFE_DELETE(ObjectVertexbuffer[i]);
@@ -2558,7 +2570,10 @@ void LoadingThread(DEMO_APP* myApp)
 	//beast
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/beast.dds", nullptr, &myApp->shaderResourceView[15]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/beast_normals.dds", nullptr, &myApp->shaderResourceView[16]);
-		
+	//assaulter
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/assault.dds", nullptr, &myApp->shaderResourceView[17]);
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/assault_normals.dds", nullptr, &myApp->shaderResourceView[18]);
+
 }
 
 void StatuesLoadingThread(DEMO_APP* myApp)
@@ -2570,6 +2585,7 @@ void StatuesLoadingThread(DEMO_APP* myApp)
 void ObjectLoadingThread(DEMO_APP* myApp)
 {
 	myApp->LoadObjectFromFile("Assets//Models//were.obj", 2); //werewolf
+	myApp->LoadObjectFromFile("Assets//Models//Assaulter.obj", 6); //Assaulter
 }
 
 void FolliageLoadingThread(DEMO_APP* myApp)
