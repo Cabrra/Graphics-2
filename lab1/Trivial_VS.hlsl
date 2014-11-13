@@ -39,7 +39,7 @@ V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 	float heightG = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).y;
 	float heightB = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).z;
 
-	float H = /*1.0f -*/ ((heightR + heightG + heightB) );/// 3.0f);
+	float H = /*1.0f -*/ ((heightR + heightG + heightB));// / 3.0f);
 
 	input.posL.y = H; //* -10;
 

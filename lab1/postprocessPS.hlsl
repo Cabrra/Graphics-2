@@ -43,9 +43,7 @@ cbuffer SPECULAR : register(b3)
 	float3 pid;
 	float specInt; //1
 	float3 padel;
-
 }
-
 
 cbuffer TIME : register(b4)
 {
