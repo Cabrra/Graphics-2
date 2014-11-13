@@ -67,7 +67,7 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 
 
 		// Build orthonormal basis.
-		float3 N = normals;
+		float3 N = normalize(normals);
 		float3 T = normalize(tang - dot(tang, N)*N);
 		float3 B = cross(N, T);
 

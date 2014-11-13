@@ -10,8 +10,9 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL,
 {
 
 	float4 baseColor;
-	float4 secondColor;
 
 	baseColor = baseTexture.Sample(filters[0], baseUV.xy);
+
+	//float4 finalColor = (baseColor.r + baseColor.g + baseColor.b) / 3.0f;
 	return baseColor;
 }

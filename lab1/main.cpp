@@ -26,6 +26,7 @@ using namespace DirectX;
 #include "NothingPS.csh"
 #include "CubeVS.csh"
 #include "cubeGS.csh"
+#include "postprocessPS.csh"
 
 #include "Sky_VS.csh"
 #include "DDSTextureLoader.h"
@@ -81,6 +82,7 @@ class DEMO_APP
 	ID3D11VertexShader*				CubeVertexShader;
 	ID3D11GeometryShader*			CubeGeometryShader;
 	ID3D11VertexShader*				objectVS;
+	ID3D11PixelShader*				postPS;
 	
 	ID3D11Texture2D*				zBuffer;
 	ID3D11DepthStencilState *		stencilState;
@@ -97,6 +99,7 @@ class DEMO_APP
 	ID3D11Buffer*					cameraPositionBuffer;
 	ID3D11Buffer*					instanceConstantBuffer;
 	ID3D11Buffer*					SpecularConstantBuffer;
+	ID3D11Buffer*					timeBuffer;
 
 	ID3D11InputLayout*				vertexLayout;
 
@@ -106,7 +109,7 @@ class DEMO_APP
 	ID3D11Buffer*					GroundIndexbuffer;
 	ID3D11Buffer*					ObjectVertexbuffer[6];
 	ID3D11Buffer*					ObjectIndexbuffer[6];
-	ID3D11ShaderResourceView*		shaderResourceView[14];
+	ID3D11ShaderResourceView*		shaderResourceView[15];
 	ID3D11SamplerState*				CubesTexSamplerState;
 	ID3D11DeviceContext*			deferredcontext[2];
 	ID3D11CommandList*				commandList[2];
@@ -122,6 +125,7 @@ class DEMO_APP
 	float							dt;
 	int								sphereIndex;
 	int								groundIndex;
+	bool							post;
 
 	//RTT
 	ID3D11Texture2D*				RTTTextureMap;
@@ -190,6 +194,11 @@ class DEMO_APP
 		XMFLOAT4 camPos;
 	};
 
+	struct SEND_TIME
+	{
+		XMFLOAT4 time;
+	};
+
 
 	struct SEND_TOINSTANCE
 	{
@@ -216,6 +225,7 @@ class DEMO_APP
 	SEND_TO_SPECULO					speculatToShader;
 	//fog
 	SEND_TOFOG						myView;
+	SEND_TIME						myTime;
 
 public:
 	friend void LoadingThread(DEMO_APP* myApp); 
@@ -277,6 +287,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//********************* END WARNING ************************//
 
 	angle = 0.0f;
+	post = false;
 
 	DXGI_SWAP_CHAIN_DESC sd;
 	ZeroMemory(&sd, sizeof(sd));
@@ -347,7 +358,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreateVertexShader(CubeVS, sizeof(CubeVS), nullptr, &CubeVertexShader);
 	hr = device->CreateGeometryShader(cubeGS, sizeof(cubeGS), nullptr, &CubeGeometryShader);
 	hr = device->CreateVertexShader(NoInstance_VS, sizeof(NoInstance_VS), nullptr, &objectVS);
-
+	hr = device->CreatePixelShader(postprocessPS, sizeof(postprocessPS), nullptr, &postPS);
+	
 	// Z BUFFER
 	D3D11_TEXTURE2D_DESC dbDesc;
 
@@ -603,6 +615,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	cbd.ByteWidth = sizeof(SEND_TO_SPECULO);
 
 	hr = device->CreateBuffer(&cbd, nullptr, &SpecularConstantBuffer);
+
+
+	ZeroMemory(&cbd, sizeof(cbd));
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.ByteWidth = sizeof(SEND_TIME);
+
+	hr = device->CreateBuffer(&cbd, nullptr, &timeBuffer);
+	
 
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
@@ -1005,6 +1027,8 @@ bool DEMO_APP::Run()
 
 	inmediateContext->Draw(1, 0);
 
+	myTime.time.x = time.TotalTime();
+
 	//trees
 	inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
@@ -1107,7 +1131,7 @@ bool DEMO_APP::Run()
 
 	inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
 
-	//ground
+	//ground draw
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1151,6 +1175,7 @@ bool DEMO_APP::Run()
 
 	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[1]);
+	inmediateContext->VSSetShaderResources(1, 1, &shaderResourceView[2]);
 	inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
 	inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
 
@@ -1383,7 +1408,10 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(noLPS);
 	SAFE_DELETE(noLPS);
 
-	for (int i = 0; i < 14; i++)
+	SAFE_RELEASE(postPS);
+	SAFE_DELETE(postPS);
+	
+	for (int i = 0; i < 15; i++)
 	{
 		SAFE_RELEASE(shaderResourceView[i]);
 		SAFE_DELETE(shaderResourceView[i]);
@@ -1491,6 +1519,9 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(SpecularConstantBuffer);
 	SAFE_DELETE(SpecularConstantBuffer);
 
+	SAFE_RELEASE(timeBuffer);
+	SAFE_DELETE(timeBuffer);
+
 	SAFE_RELEASE(multiTexturingPS);
 	SAFE_DELETE(multiTexturingPS);
 
@@ -1505,7 +1536,7 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(objectVS);
 	SAFE_DELETE(objectVS);
-	
+		
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
 }
@@ -2315,7 +2346,11 @@ void DEMO_APP::Input()
 		mat = mat * XMMatrixRotationY(XMConvertToRadians(1.5f + dt));
 		mat.r[3] = help;
 	}
-
+	else if (GetAsyncKeyState(VK_NUMPAD1) & 0x80 != 0)
+	{
+		post = !post;
+	}
+	
 	StoShader[0].ViewM = XMMatrixInverse(nullptr, mat);
 }
 
@@ -2340,7 +2375,8 @@ void LoadingThread(DEMO_APP* myApp)
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/clown_normal.dds", nullptr, &myApp->shaderResourceView[11]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/tower_D.dds", nullptr, &myApp->shaderResourceView[12]);
 	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/tuwer_Normal.dds", nullptr, &myApp->shaderResourceView[13]);
-
+	hrT = CreateDDSTextureFromFile(myApp->device, L"Assets/Textures/visionnoise.dds", nullptr, &myApp->shaderResourceView[14]);
+	
 }
 
 void StatuesLoadingThread(DEMO_APP* myApp)
@@ -2455,7 +2491,62 @@ void RRTDraw(DEMO_APP* myApp)
 	myApp->deferredcontext[1]->DrawIndexed(myApp->indexCount[2], 0, 0);
 	myApp->deferredcontext[1]->GenerateMips(myApp->shaderResourceViewMap);
 
+	
+
+	if (myApp->post == true)
+	{
+		myApp->deferredcontext[1]->ClearDepthStencilView(myApp->RTTstencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
+
+		myApp->deferredcontext[1]->PSSetShader(myApp->postPS, nullptr, 0);
+
+
+		myApp->deferredcontext[1]->VSSetConstantBuffers(0, 1, &myApp->WorldconstantBuffer);
+		myApp->deferredcontext[1]->VSSetConstantBuffers(1, 1, &myApp->SceneconstantBuffer);
+		//light
+		myApp->deferredcontext[1]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+		myApp->deferredcontext[1]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+		myApp->deferredcontext[1]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+		myApp->deferredcontext[1]->PSSetConstantBuffers(3, 1, &myApp->SpecularConstantBuffer);
+		myApp->deferredcontext[1]->PSSetConstantBuffers(4, 1, &myApp->timeBuffer);
+
+		myApp->deferredcontext[1]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->WtoShader[6], sizeof(DEMO_APP::SEND_TO_WORLD));
+		myApp->deferredcontext[1]->Unmap(myApp->WorldconstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->StoShader[3], sizeof(DEMO_APP::SEND_TO_SCENE));
+		myApp->deferredcontext[1]->Unmap(myApp->SceneconstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->directionalLight[1], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+		myApp->deferredcontext[1]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->PointLightToS[1], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+		myApp->deferredcontext[1]->Unmap(myApp->PointLightconstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+		myApp->deferredcontext[1]->Unmap(myApp->SpotLightconstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->speculatToShader, sizeof(DEMO_APP::SEND_TO_SPECULO));
+		myApp->deferredcontext[1]->Unmap(myApp->SpecularConstantBuffer, 0);
+
+		myApp->deferredcontext[1]->Map(myApp->timeBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+		memcpy(Resource.pData, &myApp->myTime, sizeof(DEMO_APP::SEND_TIME));
+		myApp->deferredcontext[1]->Unmap(myApp->timeBuffer, 0);
+
+		myApp->deferredcontext[1]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[7]);
+		myApp->deferredcontext[1]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[8]);
+		myApp->deferredcontext[1]->PSSetShaderResources(2, 1, &myApp->shaderResourceView[14]);
+
+		myApp->deferredcontext[1]->DrawIndexed(myApp->indexCount[2], 0, 0);
+		myApp->deferredcontext[1]->GenerateMips(myApp->shaderResourceViewMap);
+	}
+
 	myApp->deferredcontext[1]->FinishCommandList(true, &myApp->commandList[1]);
+
 } //working
 
 void MinimapDraw(DEMO_APP* myApp)

@@ -1,6 +1,7 @@
 #pragma pack_matrix( row_major )
 
 texture2D baseTexture : register(t0); // first texture
+texture2D heightmap : register(t1);
 
 SamplerState filters[1] : register(s0); // filter 0 using CLAMP, filter 1 using WRAP
 
@@ -52,6 +53,56 @@ cbuffer SCENE : register(b4)
 float4 main(float3 baseUV : UV, float3 normals : NORMAL, 
 	float4 pos : SV_POSITION, float3 unpos : POSITION) : SV_TARGET
 {
+
+	//calculate normals
+	float2 texel0 = heightmap.Load((baseUV.x * 512, baseUV.y * 512));
+	float myMinX = texel0.x - 1;
+	float myMaxX = texel0.x + 1;
+	float myMinY = texel0.y - 1;
+	float myMaxY = texel0.y - 1;
+
+	if (myMinX == -1)
+		myMinX = 512;
+	if (myMinY == -1)
+		myMinY = 512;
+	if (myMaxX == 512)
+		myMaxX = 0;
+	if (myMaxY == 512)
+		myMaxY = 0;
+
+	//vectors
+	float3 texelTL = float3(-1.0f, 1.0f, heightmap.Load((myMinX, myMinY)).r);
+		float3 texelTT = float3(0.0f, 1.0f, heightmap.Load((texel0.x, myMinY)).r);
+		float3 texelTR = float3(1.0f, 1.0f, heightmap.Load((myMaxX, myMinY)).r);
+		float3 texelML = float3(-1.0f, 0.0f, heightmap.Load((myMinX, texel0.y)).r);
+		float3 texelCC = float3(0.0f, 0.0f, heightmap.Load((myMinX, texel0.y)).r);
+		float3 texelMR = float3(1.0f, 0.0f, heightmap.Load((myMaxX, texel0.y)).r);
+		float3 texelBL = float3(-1.0f, -1.0f, heightmap.Load((myMinX, myMaxY)).r);
+		float3 texelBB = float3(0.0f, -1.0f, heightmap.Load((texel0.x, myMaxY)).r);
+		float3 texelBR = float3(1.0f, -1.0f, heightmap.Load((myMaxX, myMaxY)).r);
+
+		//averaging starting in TOP LEFT
+		float3 calcul1 = cross((texelTL - texelCC), (texelTT - texelCC));
+		float3 calcul2 = cross((texelTT - texelCC), (texelTR - texelCC));
+		float3 calcul3 = cross((texelTR - texelCC), (texelMR - texelCC));
+		float3 calcul4 = cross((texelMR - texelCC), (texelBR - texelCC));
+		float3 calcul5 = cross((texelBR - texelCC), (texelBB - texelCC));
+		float3 calcul6 = cross((texelBB - texelCC), (texelBL - texelCC));
+		float3 calcul7 = cross((texelBL - texelCC), (texelML - texelCC));
+		float3 calcul8 = cross((texelML - texelCC), (texelTL - texelCC));
+
+		//set new normal
+
+		normals = (calcul1 + calcul2 + calcul3 + calcul4 + calcul5 + calcul6 + calcul7 + calcul8) / 8;
+
+	float2 sample1;
+	float2 sample2;
+	float2 sample3;
+	float2 sample4;
+	float2 sample5;
+	float2 sample6;
+	float2 sample7;
+	float2 sample8;
 
 	float4 baseColor;
 	float4 ambient = float4(0.2f, 0.2f, 0.2f, 1.0f);
