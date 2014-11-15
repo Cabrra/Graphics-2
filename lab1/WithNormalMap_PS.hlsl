@@ -54,7 +54,7 @@ cbuffer SCENE : register(b4)
 float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITION, float3 unpos : POSITION, float3 tang : TANGENT) : SV_TARGET
 {
 
-	float4 ambient = float4(0.2f, 0.2f, 0.2f, 1.0f);
+	float4 ambient = float4(0.3f, 0.3f, 0.3f, 1.0f);
 	float4 baseColor = baseTexture.Sample(filters[0], baseUV);
 	clip(baseColor.w < 0.35f ? -1 : 1);
 		
@@ -118,8 +118,8 @@ float4 main(float3 baseUV : UV, float3 normals : NORMAL, float4 pos : SV_POSITIO
 		float  fogRange = 70.0f;
 		float4 fogColor = float4 (0.7f, 0.7f, 0.7f, 1.0f);
 
-			//1
-			float fogLerp = 1.0f - saturate((length(float4(0, 0, 0, 1) - unpos) - fogStart) / fogRange);
+		//1
+		float fogLerp = 1.0f - saturate((length(float4(0, 0, 0, 1) - unpos) - fogStart) / fogRange);
 		litColor = lerp(litColor, fogColor, saturate(fogLerp - 0.7f));
 		//2
 		fogStart = 0.0f;
