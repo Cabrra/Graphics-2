@@ -9,6 +9,7 @@
 using namespace std;
 
 #include <d3d11.h> 
+#define _XM_NO_INTRINSICS_
 #include <DirectXMath.h>
 #pragma comment (lib, "d3d11.lib")
 using namespace DirectX;
@@ -28,6 +29,7 @@ using namespace DirectX;
 #include "cubeGS.csh"
 #include "postprocessPS.csh"
 #include "postPixel.csh"
+#include <atomic>
 
 #include "Sky_VS.csh"
 #include "DDSTextureLoader.h"
@@ -49,7 +51,7 @@ using namespace std;
 #define BACKBUFFER_HEIGHT	768.0f
 #define CIRCLESPEED (2 * 3.1415f) / 6
 
-#define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
+#define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = nullptr; } }
 #define SAFE_DELETE(a) if( (a) != NULL ) delete (a); (a) = NULL;
 #define WAIT_FOR_THREAD(r) if ((r)->joinable()) (r)->join();
 
@@ -130,6 +132,7 @@ class DEMO_APP
 	int								groundIndex;
 	bool							post;
 	bool							post2;
+	atomic_bool						loadcheck[11];
 
 	//RTT
 	ID3D11Texture2D*				RTTTextureMap;
@@ -307,6 +310,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	post = false;
 	post2 = false;
 
+	for (int i = 0; i < 11; i++)
+		loadcheck[i] = false;
+
 	DXGI_SWAP_CHAIN_DESC sd;
 	ZeroMemory(&sd, sizeof(sd));
 	sd.BufferCount = 1;
@@ -342,6 +348,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	std::thread(GraveLoadingThread, this).detach();
 	std::thread(ZombieLoadingThread, this).detach();
 	std::thread(LamentLoadingThread, this).detach();
+
+	//std::thread(StatuesLoadingThread, this).join();
+	//std::thread(FolliageLoadingThread, this).join();
+	//std::thread(TowerLoadingThread, this).join();
+	//std::thread(ObjectLoadingThread, this).join();
+	//std::thread(BeastLoadingThread, this).join();
+	//std::thread(AssaulterLoadingThread, this).join();
+	//std::thread(ZombieHandLoadingThread, this).join();
+	//std::thread(GraveLoadingThread, this).join();
+	//std::thread(ZombieLoadingThread, this).join();
+	//std::thread(LamentLoadingThread, this).join();
 
 	viewport = new D3D11_VIEWPORT;
 	viewport->Width = (FLOAT)sd.BufferDesc.Width;
@@ -981,7 +998,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		lamentTS.world[i] *= scaling * move;
 	}
 
-
+	commandList[0] = nullptr;
+	commandList[1] = nullptr;
 	WAIT_FOR_THREAD(&myLoadingThread);
 	
 }
@@ -1054,6 +1072,7 @@ bool DEMO_APP::Run()
 	//Render To Texture
 	std::thread rttThread = std::thread(RRTDraw, this);
 
+	WAIT_FOR_THREAD(&myMinimap);
 	WAIT_FOR_THREAD(&rttThread);
 	if (commandList[1])
 		inmediateContext->ExecuteCommandList(commandList[1], true);
@@ -1080,8 +1099,11 @@ bool DEMO_APP::Run()
 	skytoShader.World = Scale * Translation;
 
 	//infinite skybox
-	XMMATRIX auxe = StoShader[0].ViewM;
-	auxe.r[3].m128_f32[0] = auxe.r[3].m128_f32[1] = auxe.r[3].m128_f32[2] = 0.0f;
+	XMMATRIX auxe = XMMatrixIdentity();
+
+	auxe.r[0] = StoShader[0].ViewM.r[0];
+	auxe.r[1] = StoShader[0].ViewM.r[1];
+	auxe.r[2] = StoShader[0].ViewM.r[2];
 	StoShader[1].ViewM = auxe;
 
 	inmediateContext->PSSetConstantBuffers(0, 1, &cameraPositionBuffer);
@@ -1189,7 +1211,7 @@ bool DEMO_APP::Run()
 		}
 	}
 	//trees
-	if (ObjectIndexbuffer[1] && ObjectVertexbuffer[1])
+	if (loadcheck[1])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
@@ -1227,6 +1249,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+		inmediateContext->GSSetShader(nullptr, nullptr, 0);
 		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 
@@ -1242,7 +1265,7 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[1], 100, 0, 0, 0);
 	}
 	//leaves
-	if (ObjectIndexbuffer[0] && ObjectVertexbuffer[0])
+	if (loadcheck[0])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
@@ -1276,6 +1299,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &instanceToShader, sizeof(SEND_TOINSTANCE));
 		inmediateContext->Unmap(instanceConstantBuffer, 0);
 
+		inmediateContext->GSSetShader(nullptr, nullptr, 0);
 		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 		sstride = sizeof(SimpleVertex);
@@ -1293,7 +1317,7 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[0], 70, 0, 0, 0);
 	}
 	//grave and zombie hands
-	if (ObjectIndexbuffer[7] && ObjectVertexbuffer[7] && ObjectIndexbuffer[8] && ObjectVertexbuffer[8])
+	if (loadcheck[7] && loadcheck[8])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
 
@@ -1331,6 +1355,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+		inmediateContext->GSSetShader(nullptr, nullptr, 0);
 		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 
@@ -1355,7 +1380,7 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[21]);
 		inmediateContext->PSSetShaderResources(1, 1, &shaderResourceView[22]);
 
-		inmediateContext->DrawIndexedInstanced(indexCount[8], 70, 0, 0, 0);
+		inmediateContext->DrawIndexedInstanced(indexCount[8], 50, 0, 0, 0);
 	}
 	//ground draw
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
@@ -1409,7 +1434,7 @@ bool DEMO_APP::Run()
 
 	//stuff
 	//clown
-	if (ObjectIndexbuffer[3] && ObjectVertexbuffer[3])
+	if (loadcheck[3])
 	{
 		inmediateContext->RSSetState(rasterState);
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
@@ -1464,7 +1489,7 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(indexCount[3], 0, 0);
 	}
 //beast
-	if (ObjectIndexbuffer[5] && ObjectVertexbuffer[5])
+	if (loadcheck[5])
 	{
 
 		inmediateContext->RSSetState(reverserasterState);
@@ -1519,7 +1544,7 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(indexCount[5], 0, 0);
 	}
 	//Assaulter
-	if (ObjectIndexbuffer[6] && ObjectVertexbuffer[6])
+	if (loadcheck[6])
 	{
 		inmediateContext->RSSetState(rasterState);
 
@@ -1578,7 +1603,7 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(indexCount[6], 0, 0);
 	}
 	//Tower
-	if (ObjectIndexbuffer[4] && ObjectVertexbuffer[4])
+	if (loadcheck[4])
 	{
 		inmediateContext->RSSetState(rasterState);
 		inmediateContext->VSSetConstantBuffers(0, 1, &WorldconstantBuffer);
@@ -1590,9 +1615,6 @@ bool DEMO_APP::Run()
 		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
 
 		inmediateContext->IASetInputLayout(vertexLayout);
-
-		inmediateContext->IASetVertexBuffers(0, 1, &ObjectVertexbuffer[3], &sstride, &soffset);
-		inmediateContext->IASetIndexBuffer(ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
 
 		inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[10]);
@@ -1650,10 +1672,10 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexed(indexCount[4], 0, 0);
 	}
 	//waster
-	if (ObjectIndexbuffer[9] && ObjectVertexbuffer[9])
+	if (loadcheck[9])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-
+		inmediateContext->RSSetState(rasterState);
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1688,6 +1710,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+		inmediateContext->GSSetShader(nullptr, nullptr, 0);
 		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 
@@ -1718,10 +1741,10 @@ bool DEMO_APP::Run()
 	}
 
 	//lament
-	if (ObjectIndexbuffer[10] && ObjectVertexbuffer[10])
+	if (loadcheck[10])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-
+		inmediateContext->RSSetState(rasterState);
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
@@ -1756,6 +1779,7 @@ bool DEMO_APP::Run()
 		memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
 		inmediateContext->Unmap(cameraPositionBuffer, 0);
 
+		inmediateContext->GSSetShader(nullptr, nullptr, 0);
 		inmediateContext->PSSetShader(objectNormalMappingPS, nullptr, 0);
 		inmediateContext->VSSetShader(objectNormalMappingVS, nullptr, 0);
 
@@ -1824,8 +1848,7 @@ bool DEMO_APP::Run()
 	////for opaque
 	//inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
 
-	WAIT_FOR_THREAD(&myMinimap);
-	if (commandList[0])
+	if (commandList[0] != nullptr)
 		inmediateContext->ExecuteCommandList(commandList[0], true);
 	SAFE_RELEASE(commandList[0]);
 
@@ -1923,11 +1946,14 @@ bool DEMO_APP::ShutDown()
 
 	for (int i = 0; i < 11; i++)
 	{
-		SAFE_RELEASE(ObjectVertexbuffer[i]);
-		SAFE_DELETE(ObjectVertexbuffer[i]);
+		if (loadcheck[i])
+		{
+			SAFE_RELEASE(ObjectVertexbuffer[i]);
+			SAFE_DELETE(ObjectVertexbuffer[i]);
 
-		SAFE_RELEASE(ObjectIndexbuffer[i]);
-		SAFE_DELETE(ObjectIndexbuffer[i]);
+			SAFE_RELEASE(ObjectIndexbuffer[i]);
+			SAFE_DELETE(ObjectIndexbuffer[i]);
+		}
 	}
 
 	SAFE_RELEASE(SceneconstantBuffer);
@@ -2653,6 +2679,8 @@ bool DEMO_APP::LoadObjectFromFile(string fileName, int slot)
 
 	indexCount[slot] = meshTriangles * 3;
 
+	loadcheck[slot] = true;
+
 	return true;
 }
 
@@ -2977,14 +3005,13 @@ void RRTDraw(DEMO_APP* myApp)
 
 	myApp->WtoShader[6].World = scaling * myApp->rotationRTT * translation;
 
-	if (myApp->ObjectIndexbuffer[2] && myApp->ObjectVertexbuffer[2])
+	if (myApp->loadcheck[2] == true)
 	{
 		myApp->deferredcontext[1]->OMSetRenderTargets(1, &myApp->RTTrenderTargetView, myApp->RTTstencilView);
 		myApp->deferredcontext[1]->ClearRenderTargetView(myApp->RTTrenderTargetView, Colors::CornflowerBlue);
 		myApp->deferredcontext[1]->ClearDepthStencilView(myApp->RTTstencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0xFF);
 
 		myApp->deferredcontext[1]->RSSetViewports(1, myApp->RTTviewport);
-		//myApp->deferredcontext[1]->OMSetDepthStencilState(myApp->stencilState, 1);
 
 		myApp->deferredcontext[1]->PSSetShader(myApp->multiTexturingPS, nullptr, 0);
 		myApp->deferredcontext[1]->VSSetShader(myApp->multiTexturingVS, nullptr, 0);
@@ -3198,63 +3225,66 @@ void MinimapDraw(DEMO_APP* myApp)
 	myApp->WtoShader[1].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
 
 	//magic box
-	if (myApp->shaderResourceViewMap)
-	{
-		myApp->deferredcontext[0]->GSSetShader(myApp->CubeGeometryShader, nullptr, 0);
-		myApp->deferredcontext[0]->PSSetShader(myApp->noLPS, nullptr, 0);
-		myApp->deferredcontext[0]->VSSetShader(myApp->CubeVertexShader, nullptr, 0);
+	//if (myApp->shaderResourceViewMap)
+	//{
+	//	myApp->deferredcontext[0]->GSSetShader(myApp->CubeGeometryShader, nullptr, 0);
+	//	myApp->deferredcontext[0]->PSSetShader(myApp->noLPS, nullptr, 0);
+	//	myApp->deferredcontext[0]->VSSetShader(myApp->CubeVertexShader, nullptr, 0);
 
-		myApp->deferredcontext[0]->GSSetConstantBuffers(0, 1, &myApp->SceneconstantBuffer);
-		//light
-		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+	//	myApp->deferredcontext[0]->GSSetConstantBuffers(0, 1, &myApp->SceneconstantBuffer);
+	//	//light
+	//	myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+	//	myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+	//	myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+	//	myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
 
-		myApp->deferredcontext[0]->PSSetSamplers(0, 1, &myApp->samplerState);
-		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceViewMap);
+	//	myApp->deferredcontext[0]->PSSetSamplers(0, 1, &myApp->samplerState);
+	//	myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceViewMap);
 
-		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->WtoShader[7], sizeof(DEMO_APP::SEND_TO_WORLD));
-		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->WtoShader[7], sizeof(DEMO_APP::SEND_TO_WORLD));
+	//	myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
 
-		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
-		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+	//	myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
 
-		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+	//	myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
 
-		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+	//	myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
 
-		myApp->deferredcontext[0]->Map(myApp->SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->speculatToShader, sizeof(DEMO_APP::SEND_TO_SPECULO));
-		myApp->deferredcontext[0]->Unmap(myApp->SpecularConstantBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->SpecularConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->speculatToShader, sizeof(DEMO_APP::SEND_TO_SPECULO));
+	//	myApp->deferredcontext[0]->Unmap(myApp->SpecularConstantBuffer, 0);
 
-		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_TOFOG));
-		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+	//	myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	//	memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_TOFOG));
+	//	myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
 
-		UINT stride = sizeof(DEMO_APP::SimpleVertex);
-		UINT offset = 0;
+	//	UINT stride = sizeof(DEMO_APP::SimpleVertex);
+	//	UINT offset = 0;
 
-		myApp->deferredcontext[0]->RSSetState(myApp->rasterState);
+	//	myApp->deferredcontext[0]->RSSetState(myApp->rasterState);
 
-		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
-		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->cubeVertexbuffer, &stride, &offset);
-		//myApp->deferredcontext[0]->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
+	//	myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+	//	myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->cubeVertexbuffer, &stride, &offset);
+	//	//myApp->deferredcontext[0]->IASetIndexBuffer(cubeIndexbuffer, DXGI_FORMAT_R16_UINT, 0);
 
-		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+	//	myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 
-		myApp->deferredcontext[0]->Draw(1, 0);
-	}
+	//	myApp->deferredcontext[0]->Draw(1, 0);
+	//}
 	//trees
-	if (myApp->ObjectIndexbuffer[1] && myApp->ObjectVertexbuffer[1])
+	if (myApp->loadcheck[1]  && myApp->loadcheck[0])
 	{
 		myApp->WtoShader[2].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+		for (int i = 0; i < 100; i++)
+			myApp->instanceToShader.world[i] *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
 		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
 		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
 		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
@@ -3285,6 +3315,7 @@ void MinimapDraw(DEMO_APP* myApp)
 		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
 		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
 
+		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
 		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
 		myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
 
@@ -3298,10 +3329,9 @@ void MinimapDraw(DEMO_APP* myApp)
 		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[5]);
 
 		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[1], 100, 0, 0, 0);
-	}
+
 	//leaves
-	if (myApp->ObjectIndexbuffer[0] && myApp->ObjectVertexbuffer[0])
-	{
+
 		myApp->WtoShader[3].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
 		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
 		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
@@ -3329,6 +3359,7 @@ void MinimapDraw(DEMO_APP* myApp)
 		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
 		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
 
+		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
 		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
 		myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
 
@@ -3341,126 +3372,274 @@ void MinimapDraw(DEMO_APP* myApp)
 		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[4]);
 		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[6]);
 
-		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[0], 70, 0, 0, 0);
+		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[0], 50, 0, 0, 0);
 
 		myApp->WtoShader[2].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
 		myApp->WtoShader[3].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+
+		for (int i = 0; i < 100; i++)
+			myApp->instanceToShader.world[i] *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
 	}
 
-	//map objects
-	/*if (ObjectIndexbuffer[3] && ObjectVertexbuffer[3])
-	{
-		myApp->WtoShader[8].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
-		myApp->WtoShader[4].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
-
-		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
-
-		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
-		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
-		myApp->deferredcontext[0]->VSSetShader(myApp->objectVS, nullptr, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
-		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->WtoShader[8], sizeof(DEMO_APP::SEND_TO_WORLD));
-		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
-		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
-
-		sstride = sizeof(DEMO_APP::SimpleVertex);
-		soffset = 0;
-
-		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
-
-		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[3], &sstride, &soffset);
-		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
-
-		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[10]);
-		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[11]);
-
-		myApp->deferredcontext[0]->DrawIndexed(myApp->indexCount[3], 0, 0);
-	}
-
-	if (ObjectIndexbuffer[4] && ObjectVertexbuffer[4])
-	{
-		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
-		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
-
-		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
-		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
-		myApp->deferredcontext[0]->VSSetShader(myApp->objectVS, nullptr, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
-		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->WtoShader[4], sizeof(DEMO_APP::SEND_TO_WORLD));
-		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
-		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
-
-		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
-		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
-
-		sstride = sizeof(DEMO_APP::SimpleVertex);
-		soffset = 0;
-
-		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
-
-		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[4], &sstride, &soffset);
-		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[4], DXGI_FORMAT_R32_UINT, 0);
-
-		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[12]);
-		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[13]);
-
-		myApp->deferredcontext[0]->DrawIndexed(myApp->indexCount[4], 0, 0);
-
-		myApp->WtoShader[4].World *= XMMatrixScaling(20.0f, 20.0f, 20.0f);
-		myApp->WtoShader[8].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
-	}*/
+	//zombies
+//if (myApp->loadcheck[9] )
+//	{
+//		for (int i = 0; i < 100; i++)
+//		{
+//			myApp->wasterTS.world[i] *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+//			myApp->wasterTS2.world[i] *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+//			myApp->wasterTS3.world[i] *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+//
+//		}
+//		myApp->deferredcontext[0]->VSSetConstantBuffers(2, 1, &myApp->instanceConstantBuffer);
+//
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+//
+//		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
+//		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+//		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->WtoShader[2], sizeof(DEMO_APP::SEND_TO_WORLD));
+//		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->wasterTS, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+//
+//		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+//		myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
+//
+//		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+//
+//		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[9], &sstride, &soffset);
+//		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[9], DXGI_FORMAT_R32_UINT, 0);
+//
+//		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+//		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[23]);
+//		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[24]);
+//
+//		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[9], 100, 0, 0, 0);
+//
+//		//wave2
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->wasterTS2, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[9], 100, 0, 0, 0);
+//
+//		//wave3
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->wasterTS3, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[9], 100, 0, 0, 0);
+//
+//		for (int i = 0; i < 100; i++)
+//		{
+//			myApp->wasterTS.world[i] *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+//			myApp->wasterTS2.world[i] *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+//			myApp->wasterTS3.world[i] *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+//
+//		}
+//	}
+//
+//	//lament
+//	if (myApp->loadcheck[10])
+//	{
+//		for (int i = 0; i < 100; i++)
+//			myApp->lamentTS.world[i] *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+//
+//		myApp->deferredcontext[0]->VSSetConstantBuffers(2, 1, &myApp->instanceConstantBuffer);
+//
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+//
+//		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
+//		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+//		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->WtoShader[2], sizeof(DEMO_APP::SEND_TO_WORLD));
+//		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->lamentTS, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp-> cameraPositionBuffer, 0);
+//
+//		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+//		myApp->deferredcontext[0]->VSSetShader(myApp->objectNormalMappingVS, nullptr, 0);
+//
+//		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+//
+//		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[10], &sstride, &soffset);
+//		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[10], DXGI_FORMAT_R32_UINT, 0);
+//
+//		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+//		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[25]);
+//		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[26]);
+//
+//		myApp->deferredcontext[0]->DrawIndexedInstanced(myApp->indexCount[10], 100, 0, 0, 0);
+//
+//		for (int i = 0; i < 100; i++)
+//			myApp->lamentTS.world[i] *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+//	}
+//	
+//	if (myApp->loadcheck[3])
+//	{
+//		myApp->WtoShader[8].World *= XMMatrixScaling(0.5f, 0.5f, 0.5f);
+//
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+//
+//		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
+//		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+//		myApp->deferredcontext[0]->VSSetShader(myApp->objectVS, nullptr, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+//		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->WtoShader[8], sizeof(DEMO_APP::SEND_TO_WORLD));
+//		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+//
+//		sstride = sizeof(DEMO_APP::SimpleVertex);
+//		soffset = 0;
+//
+//		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+//
+//		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[3], &sstride, &soffset);
+//		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[3], DXGI_FORMAT_R32_UINT, 0);
+//
+//		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+//		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[10]);
+//		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[11]);
+//
+//		myApp->deferredcontext[0]->DrawIndexed(myApp->indexCount[3], 0, 0);
+//
+//		myApp->WtoShader[8].World *= XMMatrixScaling(2.0f, 2.0f, 2.0f);
+//	}
+//
+//	if (myApp->loadcheck[4])
+//	{
+//		myApp->WtoShader[4].World *= XMMatrixScaling(0.05f, 0.05f, 0.05f);
+//
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(0, 1, &myApp->DirectionalLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(1, 1, &myApp->PointLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(2, 1, &myApp->SpotLightconstantBuffer);
+//		myApp->deferredcontext[0]->PSSetConstantBuffers(4, 1, &myApp->cameraPositionBuffer);
+//
+//		myApp->deferredcontext[0]->GSSetShader(nullptr, nullptr, 0);
+//		myApp->deferredcontext[0]->PSSetShader(myApp->objectNormalMappingPS, nullptr, 0);
+//		myApp->deferredcontext[0]->VSSetShader(myApp->objectVS, nullptr, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->StoShader[0], sizeof(DEMO_APP::SEND_TO_SCENE));
+//		myApp->deferredcontext[0]->Unmap(myApp->SceneconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->WtoShader[4], sizeof(DEMO_APP::SEND_TO_WORLD));
+//		myApp->deferredcontext[0]->Unmap(myApp->WorldconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->directionalLight[0], sizeof(DEMO_APP::SEND_DIRECTIONAL_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->DirectionalLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->PointLightToS[0], sizeof(DEMO_APP::SEND_POINT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->PointLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->SpotLightToS, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->SpotLightconstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->instanceConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->instanceToShader, sizeof(DEMO_APP::SEND_TOINSTANCE));
+//		myApp->deferredcontext[0]->Unmap(myApp->instanceConstantBuffer, 0);
+//
+//		myApp->deferredcontext[0]->Map(myApp->cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+//		memcpy(Resource.pData, &myApp->myView, sizeof(DEMO_APP::SEND_SPOT_LIGHT));
+//		myApp->deferredcontext[0]->Unmap(myApp->cameraPositionBuffer, 0);
+//
+//		sstride = sizeof(DEMO_APP::SimpleVertex);
+//		soffset = 0;
+//
+//		myApp->deferredcontext[0]->IASetInputLayout(myApp->vertexLayout);
+//
+//		myApp->deferredcontext[0]->IASetVertexBuffers(0, 1, &myApp->ObjectVertexbuffer[4], &sstride, &soffset);
+//		myApp->deferredcontext[0]->IASetIndexBuffer(myApp->ObjectIndexbuffer[4], DXGI_FORMAT_R32_UINT, 0);
+//
+//		myApp->deferredcontext[0]->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+//		myApp->deferredcontext[0]->PSSetShaderResources(0, 1, &myApp->shaderResourceView[12]);
+//		myApp->deferredcontext[0]->PSSetShaderResources(1, 1, &myApp->shaderResourceView[13]);
+//
+//		myApp->deferredcontext[0]->DrawIndexed(myApp->indexCount[4], 0, 0);
+//
+//		myApp->WtoShader[4].World *= XMMatrixScaling(20.0f, 20.0f, 20.0f);
+//	
+//	}
 
 	myApp->deferredcontext[0]->FinishCommandList(true, &myApp->commandList[0]);
 }
