@@ -911,7 +911,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		} while ((x > -60.0f && x < 60.0f) || (z > -60.0f && z < 60.0f));
 
 		XMMATRIX move = XMMatrixIdentity();
-		move = XMMatrixTranslation(x, 0.5f, z);
+		move = XMMatrixTranslation(x, 0.7f, z);
 
 		XMMATRIX scaling = XMMatrixIdentity();
 		scaling *= XMMatrixScaling(0.1f, 0.1f, 0.1f);
@@ -925,9 +925,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 		XMMATRIX move = XMMatrixIdentity();
 		move = tombstoshader.world[i];
+		move *= XMMatrixTranslation(1.0f, 0.5f, 0.0f);
 
 		XMMATRIX scaling = XMMatrixIdentity();
-		scaling *= XMMatrixScaling(0.3f, 0.3f, 0.3f);
+		scaling *= XMMatrixScaling(0.4f, 0.4f, 0.4f);
 
 		handstoshader.world[i] = XMMatrixIdentity();
 		handstoshader.world[i] *= scaling * move;
