@@ -29,6 +29,9 @@ using namespace DirectX;
 #include "cubeGS.csh"
 #include "postprocessPS.csh"
 #include "postPixel.csh"
+
+#include "waterPShader.csh"
+#include "waterVShader.csh"
 #include <atomic>
 
 #include "Sky_VS.csh"
@@ -87,6 +90,9 @@ class DEMO_APP
 	ID3D11VertexShader*				objectVS;
 	ID3D11PixelShader*				postPS;
 	ID3D11PixelShader*				postNightPS;
+
+	ID3D11VertexShader*				waterVS;
+	ID3D11PixelShader*				waterPS;
 	
 	ID3D11Texture2D*				zBuffer;
 	ID3D11DepthStencilState *		stencilState;
@@ -119,6 +125,9 @@ class DEMO_APP
 	ID3D11DeviceContext*			deferredcontext[2];
 	ID3D11CommandList*				commandList[2];
 
+	ID3D11Buffer*					WaterVertexbuffer;
+	ID3D11Buffer*					WaterIndexbuffer;
+
 	ID3D11BlendState*				Blending;
 
 	XTime							time;
@@ -130,6 +139,7 @@ class DEMO_APP
 	float							dt;
 	int								sphereIndex;
 	int								groundIndex;
+	int								waterIndex;
 	bool							post;
 	bool							post2;
 	atomic_bool						loadcheck[11];
@@ -400,6 +410,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	hr = device->CreateVertexShader(NoInstance_VS, sizeof(NoInstance_VS), nullptr, &objectVS);
 	hr = device->CreatePixelShader(postprocessPS, sizeof(postprocessPS), nullptr, &postPS);
 	hr = device->CreatePixelShader(postPixel, sizeof(postPixel), nullptr, &postNightPS);
+
+	hr = device->CreateVertexShader(waterVShader, sizeof(waterVShader), nullptr, &waterVS);
+	hr = device->CreatePixelShader(waterPShader, sizeof(waterPShader), nullptr, &waterPS);
+
 	
 	// Z BUFFER
 	D3D11_TEXTURE2D_DESC dbDesc;
@@ -592,6 +606,82 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	groundIndex = myGroundIndex.size();
 
+	//water
+	std::vector<SimpleVertex> mywater;
+
+	 initial = XMFLOAT3(-600.0f, -2.0f, 600.0f);
+
+	for (int rows = 0; rows < 1201; rows++)
+	{
+		for (int columns = 0; columns < 1201; columns++)
+		{
+			SimpleVertex aux;
+			aux.Pos = XMFLOAT3(initial.x, initial.y, initial.z);
+			aux.norm = XMFLOAT3(0.0f, 1.0f, 0.0f);
+			aux.UV = XMFLOAT3(columns*0.0083f, rows*0.0083f, 0.0f);
+
+			mywater.push_back(aux);
+
+			initial.x++;
+		}
+		initial.x = -600.0f;
+		initial.z--;
+	}
+
+
+	ZeroMemory(&bd, sizeof(bd));
+	bd.Usage = D3D11_USAGE_IMMUTABLE;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = NULL;
+	bd.ByteWidth = sizeof(SimpleVertex) * mywater.size();
+	bd.MiscFlags = 0; //unused
+	bd.StructureByteStride = sizeof(SimpleVertex);
+
+	ZeroMemory(&InitData, sizeof(InitData));
+	InitData.pSysMem = &mywater[0];
+
+	hr = device->CreateBuffer(&bd, &InitData, &WaterVertexbuffer);
+
+	std::vector<int> mywaterindex;
+
+	int wIndex = 0;
+	for (int z = 0; z < 1200; z++)
+	{
+		for (int x = 0; x < 1200; x++)
+		{
+			// first triangle
+			mywaterindex.push_back(wIndex);
+			mywaterindex.push_back(wIndex + 1201 + 1);
+			mywaterindex.push_back(wIndex + 1201);
+
+			// second triangle
+			mywaterindex.push_back(wIndex);
+			mywaterindex.push_back(wIndex + 1);
+			mywaterindex.push_back(wIndex + 1201 + 1);
+
+			wIndex++;
+		}
+		wIndex++;
+	}
+
+	ZeroMemory(&Ibd, sizeof(Ibd));
+	Ibd.Usage = D3D11_USAGE_DEFAULT;
+	Ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	Ibd.CPUAccessFlags = NULL;
+	Ibd.ByteWidth = sizeof(int) * mywaterindex.size();
+	Ibd.MiscFlags = 0; //unused
+	Ibd.StructureByteStride = sizeof(unsigned short);
+
+	ZeroMemory(&indexInitData, sizeof(indexInitData));
+	indexInitData.pSysMem = &mywaterindex[0];
+	indexInitData.SysMemPitch = 0;
+	indexInitData.SysMemSlicePitch = 0;
+
+	hr = device->CreateBuffer(&Ibd, &indexInitData, &WaterIndexbuffer);
+
+	waterIndex = mywaterindex.size();
+
+
 	D3D11_BUFFER_DESC cbd;
 	ZeroMemory(&cbd, sizeof(cbd));
 	cbd.Usage = D3D11_USAGE_DYNAMIC;
@@ -716,14 +806,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
 
-	/*rtbd.BlendEnable = true;
-	rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	rtbd.BlendOp = D3D11_BLEND_OP_ADD;
-	rtbd.SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-	rtbd.DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
-	rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;*/
+	//rtbd.BlendEnable = true;
+	//rtbd.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	//rtbd.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	//rtbd.BlendOp = D3D11_BLEND_OP_ADD;
+	//rtbd.SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	//rtbd.DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
+	//rtbd.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	//rtbd.RenderTargetWriteMask = D3D10_COLOR_WRITE_ENABLE_ALL;
 
 	rtbd.BlendEnable = true;
 	rtbd.SrcBlend = D3D11_BLEND_SRC_COLOR;
@@ -1745,13 +1835,13 @@ bool DEMO_APP::Run()
 	if (loadcheck[10])
 	{
 		inmediateContext->VSSetConstantBuffers(2, 1, &instanceConstantBuffer);
-		inmediateContext->RSSetState(rasterState);
+		inmediateContext->RSSetState(SkyrasterState);
 		inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
 		inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
 
-		inmediateContext->GSSetShader(nullptr, nullptr, 0);
+		inmediateContext->GSSetShader(geometryshader, nullptr, 0);
 		inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 		memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
 		inmediateContext->Unmap(SceneconstantBuffer, 0);
@@ -1796,58 +1886,66 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[10], 100, 0, 0, 0);
 	}
 	//water
-	//float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
-	//inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
-	//		
-	//inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
-	//inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
-	//inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
-	//inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-	//inmediateContext->RSSetState(rasterState);
+	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+	inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
+			
+	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
+	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
+	inmediateContext->RSSetState(SkyrasterState);
 
-	//inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
-	//inmediateContext->Unmap(SceneconstantBuffer, 0);
+	inmediateContext->VSSetConstantBuffers(2, 1, &timeBuffer);
+	inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
+	inmediateContext->VSSetShaderResources(0, 1, &shaderResourceView[2]);
 
-	//inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
-	//inmediateContext->Unmap(WorldconstantBuffer, 0);
+	inmediateContext->Map(SceneconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &StoShader[0], sizeof(SEND_TO_SCENE));
+	inmediateContext->Unmap(SceneconstantBuffer, 0);
 
-	//inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
-	//inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
+	inmediateContext->Map(WorldconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &WtoShader[1], sizeof(SEND_TO_WORLD));
+	inmediateContext->Unmap(WorldconstantBuffer, 0);
 
-	//inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
-	//inmediateContext->Unmap(PointLightconstantBuffer, 0);
+	inmediateContext->Map(DirectionalLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &directionalLight[0], sizeof(SEND_DIRECTIONAL_LIGHT));
+	inmediateContext->Unmap(DirectionalLightconstantBuffer, 0);
 
-	//inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
-	//inmediateContext->Unmap(SpotLightconstantBuffer, 0);
+	inmediateContext->Map(PointLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &PointLightToS[0], sizeof(SEND_POINT_LIGHT));
+	inmediateContext->Unmap(PointLightconstantBuffer, 0);
 
-	//inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-	//memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
-	//inmediateContext->Unmap(cameraPositionBuffer, 0);
+	inmediateContext->Map(SpotLightconstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &SpotLightToS, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(SpotLightconstantBuffer, 0);
 
-	//inmediateContext->GSSetShader(geometryshader, nullptr, 0);
-	//inmediateContext->PSSetShader(pixelShader, nullptr, 0);
-	//inmediateContext->VSSetShader(multiTexturingVS, nullptr, 0);
-	//sstride = sizeof(SimpleVertex);
-	//soffset = 0;
+	inmediateContext->Map(cameraPositionBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myView, sizeof(SEND_SPOT_LIGHT));
+	inmediateContext->Unmap(cameraPositionBuffer, 0);
 
-	//inmediateContext->IASetInputLayout(vertexLayout);
+	inmediateContext->Map(timeBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+	memcpy(Resource.pData, &myTime, sizeof(DEMO_APP::SEND_TIME));
+	inmediateContext->Unmap(timeBuffer, 0);
 
-	//inmediateContext->IASetVertexBuffers(0, 1, &GroundVertexbuffer, &sstride, &soffset);
-	//inmediateContext->IASetIndexBuffer(GroundIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+	inmediateContext->GSSetShader(geometryshader, nullptr, 0);
+	inmediateContext->PSSetShader(waterPS, nullptr, 0);
+	inmediateContext->VSSetShader(waterVS, nullptr, 0);
+	sstride = sizeof(SimpleVertex);
+	soffset = 0;
 
-	//inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[9]);
-	//inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-	//
-	//inmediateContext->DrawIndexed(groundIndex, 0, 0);
+	inmediateContext->IASetInputLayout(vertexLayout);
 
-	////for opaque
-	//inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
+	inmediateContext->IASetVertexBuffers(0, 1, &WaterVertexbuffer, &sstride, &soffset);
+	inmediateContext->IASetIndexBuffer(WaterIndexbuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	inmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	inmediateContext->PSSetShaderResources(0, 1, &shaderResourceView[9]);
+	inmediateContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	
+	inmediateContext->DrawIndexed(waterIndex, 0, 0);
+
+	//for opaque
+	inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
 
 	if (commandList[0] != nullptr)
 		inmediateContext->ExecuteCommandList(commandList[0], true);
@@ -2055,6 +2153,18 @@ bool DEMO_APP::ShutDown()
 
 	SAFE_RELEASE(objectVS);
 	SAFE_DELETE(objectVS);
+
+	SAFE_RELEASE(WaterIndexbuffer);
+	SAFE_DELETE(WaterIndexbuffer);
+
+	SAFE_RELEASE(WaterVertexbuffer);
+	SAFE_DELETE(WaterVertexbuffer);
+
+	SAFE_RELEASE(waterVS);
+	SAFE_DELETE(waterVS);
+
+	SAFE_RELEASE(waterPS);
+	SAFE_DELETE(waterPS);
 		
 	UnregisterClass(L"DirectXApplication", application);
 	return true;

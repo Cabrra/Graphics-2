@@ -79,5 +79,11 @@
     <FxCompile Include="postPixel.hlsl">
       <Filter>Resource Files</Filter>
     </FxCompile>
+    <FxCompile Include="waterPShader.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
+    <FxCompile Include="waterVShader.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
