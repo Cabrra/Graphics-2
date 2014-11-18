@@ -355,20 +355,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	std::thread(BeastLoadingThread, this).detach();
 	std::thread(AssaulterLoadingThread, this).detach();
 	std::thread(ZombieHandLoadingThread, this).detach();
-	std::thread(GraveLoadingThread, this).detach();
+	//std::thread(GraveLoadingThread, this).detach();
 	std::thread(ZombieLoadingThread, this).detach();
 	std::thread(LamentLoadingThread, this).detach();
 
-	//std::thread(StatuesLoadingThread, this).join();
-	//std::thread(FolliageLoadingThread, this).join();
-	//std::thread(TowerLoadingThread, this).join();
-	//std::thread(ObjectLoadingThread, this).join();
-	//std::thread(BeastLoadingThread, this).join();
-	//std::thread(AssaulterLoadingThread, this).join();
-	//std::thread(ZombieHandLoadingThread, this).join();
-	//std::thread(GraveLoadingThread, this).join();
-	//std::thread(ZombieLoadingThread, this).join();
-	//std::thread(LamentLoadingThread, this).join();
 
 	viewport = new D3D11_VIEWPORT;
 	viewport->Width = (FLOAT)sd.BufferDesc.Width;
