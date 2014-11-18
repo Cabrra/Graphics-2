@@ -61,9 +61,10 @@ V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 	/*localH.y += localH.x * cos(localH.y + elapsedTime) + sin(localH.y - elapsedTime) * 0.3f;
 	localH.x +=  localH.y * sin(localH.z + elapsedTime) * -0.1f;*/
 
-	localH.x += 2.0f * cos(localH.x + elapsedTime) * 0.01f;
-	localH.y -= 2.0f * cos(localH.z + elapsedTime) *0.25f;
-
+	localH.x -= cos(localH.z + elapsedTime) - sin(localH.z + elapsedTime) - cos(elapsedTime * 2.0f);
+	localH.y = sin(localH.y * localH.z - elapsedTime *2.5f) - 1.5f;
+	localH.z -= cos(localH.x + elapsedTime) * 0.2f;
+	
 	localH = mul(localH, worldMatrix);
 	localH = mul(localH, viewMatrix);
 	localH = mul(localH, projectionMatrix);
