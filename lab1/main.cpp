@@ -1886,8 +1886,8 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[10], 100, 0, 0, 0);
 	}
 	//water
-	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
-	inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
+//	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
+//	inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
 			
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
@@ -1945,7 +1945,7 @@ bool DEMO_APP::Run()
 	inmediateContext->DrawIndexed(waterIndex, 0, 0);
 
 	//for opaque
-	inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
+	//inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
 
 	if (commandList[0] != nullptr)
 		inmediateContext->ExecuteCommandList(commandList[0], true);
