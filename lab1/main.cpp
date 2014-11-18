@@ -609,7 +609,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//water
 	std::vector<SimpleVertex> mywater;
 
-	 initial = XMFLOAT3(-600.0f, -2.0f, 600.0f);
+	 initial = XMFLOAT3(-600.0f, -4.0f, 600.0f);
 
 	for (int rows = 0; rows < 1201; rows++)
 	{
@@ -1886,14 +1886,14 @@ bool DEMO_APP::Run()
 		inmediateContext->DrawIndexedInstanced(indexCount[10], 100, 0, 0, 0);
 	}
 	//water
-//	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
-//	inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
+	float blendFactor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+	inmediateContext->OMSetBlendState(Blending, blendFactor, 0xffffffff);
 			
 	inmediateContext->PSSetConstantBuffers(0, 1, &DirectionalLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(1, 1, &PointLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(2, 1, &SpotLightconstantBuffer);
 	inmediateContext->PSSetConstantBuffers(4, 1, &cameraPositionBuffer);
-	inmediateContext->RSSetState(SkyrasterState);
+	inmediateContext->RSSetState(rasterState);
 
 	inmediateContext->VSSetConstantBuffers(2, 1, &timeBuffer);
 	inmediateContext->VSSetSamplers(0, 1, &CubesTexSamplerState);
@@ -1945,7 +1945,7 @@ bool DEMO_APP::Run()
 	inmediateContext->DrawIndexed(waterIndex, 0, 0);
 
 	//for opaque
-	//inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
+	inmediateContext->OMSetBlendState(0, 0, 0xffffffff);
 
 	if (commandList[0] != nullptr)
 		inmediateContext->ExecuteCommandList(commandList[0], true);

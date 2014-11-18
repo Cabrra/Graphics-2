@@ -41,13 +41,13 @@ V_OUT main(V_IN input, uint instan : SV_INSTANCEID)
 	V_OUT output = (V_OUT)0;
 	// ensures translation is preserved during matrix multiply  
 
-	float heightR = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).x;
+	/*float heightR = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).x;
 	float heightG = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).y;
-	float heightB = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).z;
+	float heightB = heightmap.SampleLevel(filters[0], input.UVL.xy, 0).z;*/
 
-	float H = /*1.0f -*/ ((heightR + heightG + heightB));// / 3.0f);
+	//float H = /*1.0f -*/ ((heightR + heightG + heightB));// / 5.0f);
 
-	input.posL.y = H; //* -10;
+	input.posL.y = -0.5f; //* -10;
 
 	output.unpos = input.posL;
 	float4 localH = float4(input.posL, 1.0f);
