@@ -1,4 +1,4 @@
-# DirectX shader compilation
+# Water shaders
 
 ## Usage
 
