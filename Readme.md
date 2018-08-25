@@ -2,7 +2,7 @@ Nightmare Scene
 ===============
 Graphics II DirectX class project from Full Sail University
 
-##Topics 
+## Topics 
 	+ Discover how light & shadow enhance visual depth and realism.
 	+ Learn about the new kinds of shaders available on modern hardware. 
 	+ Build a unique 3D solo project to practice new found skills. 
@@ -70,5 +70,5 @@ This project is licensed under the MIT license - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 * Full Sail University - Game Development Department
-* Tim Turcich
-* L.Norri CD DRX FullSail University
+* Tim Turcich - Course Director
+* L.Norri - Course Director
