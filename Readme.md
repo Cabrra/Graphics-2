@@ -45,15 +45,15 @@ The scene is fully traversable pressing the movement keys
 
 ## Pictures
 
-![Clown](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/clown.png)
+![Clown](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/clown.png)
 
-![Ground](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/ground.png)
+![Ground](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/ground.png)
 
-![Tower](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/tower.png)
+![Tower](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/tower.png)
 
-![tree](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/tree.png)
+![tree](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/tree.png)
 
-![water](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/water.png)
+![water](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/water.png)
 
 ## Contributing
 
