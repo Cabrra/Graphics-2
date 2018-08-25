@@ -43,7 +43,18 @@ The scene is fully traversable pressing the movement keys
 	+ NumPad 1 - change magic box effect (magic box is located in the upper right side of the island)
 	+ Esc - close application
 
-	
+## Pictures
+
+![Clown](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/clown.png)
+
+![Ground](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/ground.png)
+
+![Tower](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/tower.png)
+
+![tree](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/tree.png)
+
+![water](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directX II/water.png)
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](https://github.com/Cabrra/Contributing-template/blob/master/Contributing-template.md) for details on the code of conduct, and the process for submitting pull requests to me.
