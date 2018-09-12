@@ -49,11 +49,11 @@ The scene is fully traversable pressing the movement keys
 
 ![Ground](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/ground.png?token=AI_RbexTnT1ctngSXjO_dnNS1Tk_-cCXks5bofd8wA%3D%3D)
 
-![Tower](https://github.com/Cabrra/cabrra.github.io/raw/master/Images/directXII/tower.png)
+![Tower](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/tower.png?token=AI_RbSvdNzUc47ODaX65vtFozJ8cazRoks5bofgKwA%3D%3D)
 
-![tree](https://github.com/Cabrra/cabrra.github.io/raw/master/Images/directXII/tree.png)
+![tree](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/tree.png?token=AI_RbQ1HEIc8QPErKiGKMgpf2oSu-x9Sks5bofgZwA%3D%3D)
 
-![water](https://github.com/Cabrra/cabrra.github.io/raw/master/Images/directXII/water.png)
+![water](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/water.png?token=AI_RbSw28lB9L6GlJ7kksM42YXbC7dsAks5bofgnwA%3D%3D)
 
 ## Contributing
 
