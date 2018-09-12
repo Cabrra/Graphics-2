@@ -45,9 +45,9 @@ The scene is fully traversable pressing the movement keys
 
 ## Pictures
 
-![Clown](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/clown.png)
+![Clown](https://github.com/Cabrra/cabrra.github.io/raw/master/Images/directXII/clown.png)
 
-![Ground](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/ground.png)
+![Ground](https://github.com/Cabrra/cabrra.github.io/raw/master/Images/directXII/ground.png)
 
 ![Tower](https://github.com/Cabrra/cabrra.github.io/blob/master/Images/directXII/tower.png)
 
