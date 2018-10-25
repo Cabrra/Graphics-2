@@ -45,15 +45,15 @@ The scene is fully traversable pressing the movement keys
 
 ## Pictures
 
-![Clown](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/clown.png?token=AI_RbR9FzgRq7jUBk5hlLzR0EJRIVLPXks5bofcIwA%3D%3D)
+![Clown](/Images/clown.png)
 
-![Ground](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/ground.png?token=AI_RbexTnT1ctngSXjO_dnNS1Tk_-cCXks5bofd8wA%3D%3D)
+![Ground](/Images/ground.png)
 
-![Tower](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/tower.png?token=AI_RbSvdNzUc47ODaX65vtFozJ8cazRoks5bofgKwA%3D%3D)
+![Tower](/Images/tower.png)
 
-![tree](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/tree.png?token=AI_RbQ1HEIc8QPErKiGKMgpf2oSu-x9Sks5bofgZwA%3D%3D)
+![tree](/Images/tree.png)
 
-![water](https://raw.githubusercontent.com/Cabrra/cabrra.github.io/master/Images/directXII/water.png?token=AI_RbSw28lB9L6GlJ7kksM42YXbC7dsAks5bofgnwA%3D%3D)
+![water](/Images/water.png)
 
 ## Contributing
 
